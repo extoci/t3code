@@ -208,6 +208,11 @@ function useStreamingHaptics(threadId: ThreadId, feed: ReadonlyArray<ThreadFeedE
   }, [threadId, feed]);
 }
 
+const USER_INPUT_TOGGLE_TIMING = {
+  duration: USER_INPUT_TOGGLE_DURATION_MS,
+  easing: Easing.out(Easing.cubic),
+};
+
 export const ThreadDetailScreen = memo(function ThreadDetailScreen(props: ThreadDetailScreenProps) {
   const insets = useSafeAreaInsets();
   const isKeyboardVisible = useKeyboardState((state) => state.isVisible);
@@ -297,19 +302,6 @@ export const ThreadDetailScreen = memo(function ThreadDetailScreen(props: Thread
   const activeUserInputRequestId = props.activePendingUserInput?.requestId ?? null;
   const userInputCollapsed =
     activeUserInputRequestId !== null && collapsedUserInputRequestId === activeUserInputRequestId;
-  const handleToggleUserInputCollapsed = useCallback(() => {
-    if (activeUserInputRequestId === null) {
-      return;
-    }
-    if (userInputCollapsed) {
-      setCollapsedUserInputRequestId(null);
-    } else {
-      // Collapsing hides the custom-answer inputs; release the keyboard with
-      // them instead of leaving it up over a dead responder.
-      Keyboard.dismiss();
-      setCollapsedUserInputRequestId(activeUserInputRequestId);
-    }
-  }, [activeUserInputRequestId, userInputCollapsed]);
   // The card's height RESERVES keyboard space at all times instead of
   // tracking the keyboard: transforms (the sticky translation) apply
   // same-frame on the UI thread while layout props lag a Yoga pass behind,
@@ -350,64 +342,103 @@ export const ThreadDetailScreen = memo(function ThreadDetailScreen(props: Thread
     Math.max(0, estimatedOverlayHeight - nativeInsetOvercount),
     -nativeInsetOvercount,
   );
-  // The expanded questionnaire is an absolute overlay, so it never changes
-  // the measured overlay height (that constancy is what keeps the feed from
-  // snapping on collapse/expand). Its coverage above the bar footprint is
-  // instead added to the feed's end inset HERE, animated in sync with the
-  // card's 220ms rise/sink, so the end of the chat glides up above the card
-  // the way it does for the keyboard.
-  const [userInputCardCoverage, setUserInputCardCoverage] = useState(0);
-  const pendingCardInsetExtra = useSharedValue(0);
+  // The expanded questionnaire is an absolute overlay on iOS, so it never
+  // changes the measured overlay height (that constancy is what keeps the
+  // feed from snapping on collapse/expand). The toggle choreography runs on
+  // SHARED VALUES set directly in the tap handler — one JS hop, then the
+  // card's rise/sink and the feed's end-inset glide animate in lockstep on
+  // the UI thread, keyboard-style, instead of waiting on React mount +
+  // onLayout + state round trips. Coverage (how far the card extends above
+  // the bar) is measured straight into a shared value by the card's
+  // onLayout, with no re-render.
+  const userInputCardProgress = useSharedValue(1);
+  const userInputInsetProgress = useSharedValue(1);
+  const userInputCardCoverage = useSharedValue(0);
+  // Android renders the expanded card in-flow (it cannot hit-test the iOS
+  // overlay outside the bar's bounds), so its measured overlay height already
+  // includes the card — the coverage extra is iOS-only.
+  const userInputCoverageApplies = Platform.OS === "ios" && activeUserInputRequestId !== null;
   const combinedContentInsetEndAdjustment = useSharedValue(
     Math.max(0, estimatedOverlayHeight - nativeInsetOvercount),
   );
   useAnimatedReaction(
-    () => contentInsetEndAdjustment.value + pendingCardInsetExtra.value,
+    () =>
+      contentInsetEndAdjustment.value +
+      (userInputCoverageApplies ? userInputInsetProgress.value * userInputCardCoverage.value : 0),
     (value) => {
       combinedContentInsetEndAdjustment.value = value;
     },
+    [userInputCoverageApplies],
   );
   const { freeze, scrollMessageToEnd } = useKeyboardScrollToEnd({ listRef });
-  // Android renders the expanded card in-flow (it cannot hit-test the iOS
-  // overlay outside the bar's bounds), so its measured overlay height already
-  // includes the card — the coverage extra is iOS-only.
-  const userInputInsetExtraTarget =
-    Platform.OS === "ios" && activeUserInputRequestId !== null && !userInputCollapsed
-      ? userInputCardCoverage
-      : 0;
   const endFollowEnabledRef = useRef(true);
   endFollowEnabledRef.current = endFollowEnabled;
-  useEffect(() => {
-    const expanding = userInputInsetExtraTarget > pendingCardInsetExtra.value;
-    if (expanding) {
-      // Expanding: glide the end of the chat up above the rising card.
-      pendingCardInsetExtra.value = withTiming(userInputInsetExtraTarget, {
-        duration: USER_INPUT_TOGGLE_DURATION_MS,
-        easing: Easing.out(Easing.cubic),
-      });
-    } else {
-      // Collapsing: the sinking card still covers the strip being revealed,
-      // so an instant step is invisible behind it.
-      pendingCardInsetExtra.value = userInputInsetExtraTarget;
-    }
-    if (!endFollowEnabledRef.current) {
-      return;
-    }
-    // The list's own corrections for these inset changes drift on short
-    // content (and the error compounds across toggles), so deterministically
-    // re-pin the end once the change settles: a no-op when the resting
-    // position is already right, corrective when it is not. On collapse the
-    // correction lands while the sinking card still covers the strip.
-    const timer = setTimeout(
-      () => {
+  const userInputRepinTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The list's own corrections for these inset changes drift on short
+  // content (and the error compounds across toggles), so deterministically
+  // re-pin the end once a toggle settles: a no-op when the resting position
+  // is already right, corrective when it is not. Follow state is re-checked
+  // inside the callback — the user may grab the list during the settle
+  // window, and yanking them back would override a live gesture.
+  const scheduleUserInputRepin = useCallback(
+    (delayMs: number) => {
+      if (userInputRepinTimerRef.current !== null) {
+        clearTimeout(userInputRepinTimerRef.current);
+      }
+      userInputRepinTimerRef.current = setTimeout(() => {
+        userInputRepinTimerRef.current = null;
+        if (!endFollowEnabledRef.current) {
+          return;
+        }
         void scrollMessageToEnd({ animated: false, closeKeyboard: false }).catch(() => {
           freeze.set(false);
         });
-      },
-      expanding ? USER_INPUT_TOGGLE_DURATION_MS + 50 : 60,
-    );
-    return () => clearTimeout(timer);
-  }, [freeze, pendingCardInsetExtra, scrollMessageToEnd, userInputInsetExtraTarget]);
+      }, delayMs);
+    },
+    [freeze, scrollMessageToEnd],
+  );
+  useEffect(
+    () => () => {
+      if (userInputRepinTimerRef.current !== null) {
+        clearTimeout(userInputRepinTimerRef.current);
+      }
+    },
+    [],
+  );
+  const handleToggleUserInputCollapsed = useCallback(() => {
+    if (activeUserInputRequestId === null) {
+      return;
+    }
+    if (userInputCollapsed) {
+      // Expanding: card and feed glide start NOW, on the UI thread.
+      userInputCardProgress.value = withTiming(1, USER_INPUT_TOGGLE_TIMING);
+      userInputInsetProgress.value = withTiming(1, USER_INPUT_TOGGLE_TIMING);
+      setCollapsedUserInputRequestId(null);
+      scheduleUserInputRepin(USER_INPUT_TOGGLE_DURATION_MS + 50);
+    } else {
+      // Collapsing hides the custom-answer inputs; release the keyboard with
+      // them instead of leaving it up over a dead responder.
+      Keyboard.dismiss();
+      userInputCardProgress.value = withTiming(0, USER_INPUT_TOGGLE_TIMING);
+      // Instant: the sinking card still covers the strip being revealed, and
+      // animating the inset downward is what drifted the short-content end
+      // anchor.
+      userInputInsetProgress.value = 0;
+      setCollapsedUserInputRequestId(activeUserInputRequestId);
+      scheduleUserInputRepin(60);
+    }
+  }, [
+    activeUserInputRequestId,
+    scheduleUserInputRepin,
+    userInputCardProgress,
+    userInputCollapsed,
+    userInputInsetProgress,
+  ]);
+  useEffect(() => {
+    // A new request always arrives expanded.
+    userInputCardProgress.value = 1;
+    userInputInsetProgress.value = 1;
+  }, [activeUserInputRequestId, userInputCardProgress, userInputInsetProgress]);
   const showContent = props.showContent ?? true;
   const layoutVariant = props.layoutVariant ?? "compact";
   const isSplitLayout = layoutVariant === "split";
@@ -664,7 +695,8 @@ export const ThreadDetailScreen = memo(function ThreadDetailScreen(props: Thread
                       collapsed={userInputCollapsed}
                       onToggleCollapsed={handleToggleUserInputCollapsed}
                       onStopThread={props.onStopThread}
-                      onCardCoverageChange={setUserInputCardCoverage}
+                      cardProgress={userInputCardProgress}
+                      cardCoverage={userInputCardCoverage}
                       onInputFocusChange={handleOwnedInputFocusChange}
                       drafts={props.activePendingUserInputDrafts}
                       answers={props.activePendingUserInputAnswers}

@@ -1,7 +1,15 @@
 import type { ApprovalRequestId, UserInputQuestion } from "@t3tools/contracts";
 import { useCallback, useRef } from "react";
 import { Platform, Pressable, ScrollView, View, type LayoutChangeEvent } from "react-native";
-import Animated, { Easing, FadeInUp, FadeOutDown, LinearTransition } from "react-native-reanimated";
+import Animated, {
+  Easing,
+  FadeInUp,
+  FadeOutDown,
+  LinearTransition,
+  useAnimatedStyle,
+  withTiming,
+  type SharedValue,
+} from "react-native-reanimated";
 
 import { USER_INPUT_TOGGLE_DURATION_MS } from "./pendingUserInputLayout";
 
@@ -29,11 +37,18 @@ export interface PendingUserInputCardProps {
   /** Renders a stop control on the collapsed bar, which replaces the composer. */
   readonly onStopThread?: () => void;
   /**
-   * Reports how far the expanded card extends above the bar footprint, so the
-   * host can add that coverage to the thread feed's end inset (animated) and
-   * keep the end of the chat visible above the card.
+   * 0 collapsed → 1 expanded. Drives the iOS overlay card's opacity and
+   * rise on the UI thread; the host animates it directly from the tap
+   * handler so the card and the feed inset glide start the same frame.
    */
-  readonly onCardCoverageChange?: (coverage: number) => void;
+  readonly cardProgress?: SharedValue<number>;
+  /**
+   * Receives how far the expanded card extends above the bar footprint
+   * (written from onLayout with no re-render); the host adds it to the
+   * thread feed's end inset so the end of the chat stays visible above the
+   * card.
+   */
+  readonly cardCoverage?: SharedValue<number>;
   /** Fires on custom-answer focus/blur; hosts use it to vet stale keyboard state. */
   readonly onInputFocusChange?: (focused: boolean) => void;
   readonly drafts: Record<string, PendingUserInputDraftAnswer>;
@@ -73,12 +88,25 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
   const iconSubtle = useThemeColor("--color-icon-subtle");
   const questionCount = props.pendingUserInput.questions.length;
 
-  const onCardCoverageChange = props.onCardCoverageChange;
+  const cardCoverage = props.cardCoverage;
   const barHeightRef = useRef(0);
   const cardHeightRef = useRef(0);
   const notifyCoverage = useCallback(() => {
-    onCardCoverageChange?.(Math.max(0, cardHeightRef.current - barHeightRef.current));
-  }, [onCardCoverageChange]);
+    if (!cardCoverage) {
+      return;
+    }
+    const coverage = Math.max(0, cardHeightRef.current - barHeightRef.current);
+    if (coverage === cardCoverage.value) {
+      return;
+    }
+    // Animated so a coverage change at rest (arrival measurement, discrete
+    // max-height corrections) glides the feed instead of stepping it; toggle
+    // timing is owned by the host's progress values.
+    cardCoverage.value = withTiming(coverage, {
+      duration: USER_INPUT_TOGGLE_DURATION_MS,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [cardCoverage]);
   const handleBarLayout = useCallback(
     (event: LayoutChangeEvent) => {
       barHeightRef.current = event.nativeEvent.layout.height;
@@ -93,7 +121,20 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
     },
     [notifyCoverage],
   );
+  const cardProgress = props.cardProgress;
+  const cardAnimatedStyle = useAnimatedStyle(() => {
+    const progress = cardProgress === undefined ? 1 : cardProgress.value;
+    return {
+      opacity: progress,
+      transform: [{ translateY: (1 - progress) * 24 }],
+    };
+  });
 
+  // On iOS the card stays MOUNTED while collapsed (hidden via the animated
+  // style): expanding animates existing views on the UI thread the same
+  // frame the host starts the progress timing, instead of paying a React
+  // mount + layout before anything moves.
+  const renderCard = EXPANDED_CARD_IS_OVERLAY || !props.collapsed;
   const showBar = props.collapsed || EXPANDED_CARD_IS_OVERLAY;
   return (
     <View className="relative">
@@ -133,24 +174,35 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
           ) : null}
         </View>
       ) : null}
-      {props.collapsed ? null : (
+      {renderCard ? (
         // The surface is opaque on purpose: the card floats over the thread
         // feed with no blur behind it, so a translucent background renders
         // the questions on top of whatever message happens to sit underneath.
         <Animated.View
           onLayout={handleCardLayout}
-          entering={FadeInUp.duration(USER_INPUT_TOGGLE_DURATION_MS).easing(
-            Easing.out(Easing.cubic),
-          )}
-          exiting={FadeOutDown.duration(USER_INPUT_TOGGLE_DURATION_MS).easing(
-            Easing.out(Easing.cubic),
-          )}
+          pointerEvents={props.collapsed ? "none" : "auto"}
+          accessibilityElementsHidden={props.collapsed}
+          importantForAccessibility={props.collapsed ? "no-hide-descendants" : "auto"}
+          entering={
+            EXPANDED_CARD_IS_OVERLAY
+              ? undefined
+              : FadeInUp.duration(USER_INPUT_TOGGLE_DURATION_MS).easing(Easing.out(Easing.cubic))
+          }
+          exiting={
+            EXPANDED_CARD_IS_OVERLAY
+              ? undefined
+              : FadeOutDown.duration(USER_INPUT_TOGGLE_DURATION_MS).easing(Easing.out(Easing.cubic))
+          }
           layout={CARD_LAYOUT_TRANSITION}
           className={cn(
             EXPANDED_CARD_IS_OVERLAY && "absolute inset-x-0 bottom-0",
             "overflow-hidden gap-2.5 rounded-[20px] border border-neutral-200 bg-neutral-100 p-4 dark:border-white/6 dark:bg-neutral-900",
           )}
-          style={{ maxHeight: props.maxHeight }}
+          style={
+            EXPANDED_CARD_IS_OVERLAY
+              ? [{ maxHeight: props.maxHeight }, cardAnimatedStyle]
+              : { maxHeight: props.maxHeight }
+          }
         >
           <Pressable
             accessibilityRole="button"
@@ -255,7 +307,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
             <Text className="font-t3-extrabold text-sm text-white">Submit answers</Text>
           </Pressable>
         </Animated.View>
-      )}
+      ) : null}
     </View>
   );
 }
