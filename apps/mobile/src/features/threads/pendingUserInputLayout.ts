@@ -12,8 +12,10 @@ export const ESTIMATED_KEYBOARD_HEIGHT = 336;
 /**
  * One clock for the questionnaire expand/collapse choreography: the card's
  * enter/exit and the feed-inset glide must share it or they visibly drift.
+ * Sized for the near-full-height slide (the card travels its own height),
+ * in the same class as the iOS keyboard's ~250ms.
  */
-export const USER_INPUT_TOGGLE_DURATION_MS = 170;
+export const USER_INPUT_TOGGLE_DURATION_MS = 220;
 
 export function derivePendingUserInputMaxHeight(input: {
   readonly windowHeight: number;
