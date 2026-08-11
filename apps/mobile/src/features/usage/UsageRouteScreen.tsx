@@ -23,6 +23,7 @@ import type { UsageChartMetric } from "./usageChartData";
 import { PROVIDER_LABEL, useProviderColors } from "./usageProviders";
 
 const WINDOW_OPTIONS = [
+  { days: 1, label: "1 day" },
   { days: 7, label: "7 days" },
   { days: 30, label: "30 days" },
   { days: 90, label: "90 days" },
@@ -198,7 +199,9 @@ function ChartCard(props: {
             </View>
           ))}
         </View>
-        <Text className="text-xs text-foreground-tertiary">{formatDayShort(props.untilDay)}</Text>
+        {props.sinceDay === props.untilDay ? null : (
+          <Text className="text-xs text-foreground-tertiary">{formatDayShort(props.untilDay)}</Text>
+        )}
       </View>
     </View>
   );

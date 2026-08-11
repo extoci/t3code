@@ -22,6 +22,7 @@ import { UsageChartLegend, UsageProviderChart, type UsageChartMetric } from "./U
 import { PROVIDER_COLOR, PROVIDER_LABEL, PROVIDER_MARK, PROVIDER_ORDER } from "./usageProviders";
 
 const WINDOW_OPTIONS = [
+  { days: 1, label: "1 day" },
   { days: 7, label: "7 days" },
   { days: 30, label: "30 days" },
   { days: 90, label: "90 days" },
@@ -95,7 +96,10 @@ export function UsagePage() {
           <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-6">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <p className="text-sm text-muted-foreground">
-                {formatDayShort(window.sinceDay)} to {formatDayShort(window.untilDay)}
+                {formatDayShort(window.sinceDay)}
+                {window.sinceDay === window.untilDay
+                  ? null
+                  : ` to ${formatDayShort(window.untilDay)}`}
               </p>
               <div className="flex items-center gap-2">
                 <div className="flex overflow-hidden rounded-md border border-border">
