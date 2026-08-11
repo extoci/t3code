@@ -103,6 +103,7 @@ export const layerTest = Layer.succeed(
         timeZone: input.timeZone,
         sinceDay: input.sinceDay,
         untilDay: input.untilDay,
+        bucketHours: input.bucketHours,
         buckets: [],
         sources: [],
         pricing: {
@@ -318,6 +319,7 @@ export const make = Effect.gen(function* () {
       timeZone: input.timeZone,
       sinceDay: input.sinceDay,
       untilDay: input.untilDay,
+      bucketHours: input.bucketHours,
       rates,
     });
 
@@ -399,6 +401,7 @@ export const make = Effect.gen(function* () {
       timeZone: input.timeZone,
       sinceDay: input.sinceDay,
       untilDay: input.untilDay,
+      bucketHours: input.bucketHours,
       buckets: aggregated.buckets,
       sources,
       pricing: {

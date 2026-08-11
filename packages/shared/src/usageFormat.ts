@@ -4,7 +4,12 @@
  *
  * @module usageFormat
  */
-import { UsageDay, type UsageSummaryInput } from "@t3tools/contracts";
+import {
+  UsageDay,
+  type UsageBucketHours,
+  type UsageBucketStartHour,
+  type UsageSummaryInput,
+} from "@t3tools/contracts";
 
 const CURRENCY = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -80,6 +85,45 @@ export function enumerateDays(sinceDay: string, untilDay: string): readonly stri
   return days;
 }
 
+export interface UsagePeriod {
+  readonly key: string;
+  readonly day: string;
+  readonly startHour: UsageBucketStartHour;
+}
+
+export function usagePeriodKey(day: string, startHour: UsageBucketStartHour): string {
+  return `${day}T${String(startHour).padStart(2, "0")}`;
+}
+
+/** Enumerates every chart bucket in an inclusive calendar-day window. */
+export function enumerateUsagePeriods(
+  sinceDay: string,
+  untilDay: string,
+  bucketHours: UsageBucketHours,
+): readonly UsagePeriod[] {
+  const startHours: readonly UsageBucketStartHour[] = bucketHours === 6 ? [0, 6, 12, 18] : [0];
+
+  return enumerateDays(sinceDay, untilDay).flatMap((day) =>
+    startHours.map((startHour) => ({
+      key: usagePeriodKey(day, startHour),
+      day,
+      startHour,
+    })),
+  );
+}
+
+export function formatHourShort(hour: number): string {
+  const normalized = hour % 24;
+  if (normalized === 0) return "12 AM";
+  if (normalized === 12) return "12 PM";
+  return normalized < 12 ? `${normalized} AM` : `${normalized - 12} PM`;
+}
+
+export function formatUsagePeriod(period: UsagePeriod, bucketHours: UsageBucketHours): string {
+  if (bucketHours === 24) return formatDayShort(period.day);
+  return `${formatDayShort(period.day)}, ${formatHourShort(period.startHour)}–${formatHourShort(period.startHour + bucketHours)}`;
+}
+
 /**
  * The window the page requests, expressed in the viewer's own time zone so days
  * line up with what they actually experienced.
@@ -104,5 +148,6 @@ export function makeWindow(days: number, now = new Date()): UsageSummaryInput {
     sinceDay: UsageDay.make(start.toISOString().slice(0, 10)),
     untilDay: UsageDay.make(untilDay),
     timeZone,
+    bucketHours: days === 1 ? 6 : 24,
   };
 }

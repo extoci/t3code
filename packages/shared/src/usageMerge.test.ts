@@ -13,6 +13,7 @@ import { mergeUsage, type EnvironmentUsage } from "./usageMerge.ts";
 function bucket(overrides: Partial<UsageBucket> = {}): UsageBucket {
   return {
     day: "2026-08-07" as UsageDay,
+    startHour: 0,
     provider: "claude",
     model: "claude-fable-5",
     totals: {
@@ -42,6 +43,7 @@ function summary(
     distinctSessions?: number;
   }[],
   contractVersion: number = USAGE_CONTRACT_VERSION,
+  bucketHours: 6 | 24 = 24,
 ): UsageSummary {
   return {
     contractVersion,
@@ -49,6 +51,7 @@ function summary(
     timeZone: "UTC",
     sinceDay: "2026-08-01" as UsageDay,
     untilDay: "2026-08-31" as UsageDay,
+    bucketHours,
     buckets,
     sources: sources.map((source) => ({
       fingerprint: {
@@ -248,6 +251,30 @@ describe("mergeUsage", () => {
     );
 
     expect(merged.sessions).toBe(1);
+  });
+
+  it("keeps six-hour periods while also deriving the daily total", () => {
+    const merged = mergeUsage(
+      [
+        environment(
+          "env-a",
+          summary(
+            [bucket({ startHour: 0, costUsd: 3 }), bucket({ startHour: 6, costUsd: 7 })],
+            [{ provider: "claude", hostId: "mac", homePath: "/a/.claude" }],
+            USAGE_CONTRACT_VERSION,
+            6,
+          ),
+        ),
+      ],
+      USAGE_CONTRACT_VERSION,
+    );
+
+    expect(merged.periods.map((period) => [period.startHour, period.costUsd])).toEqual([
+      [0, 3],
+      [6, 7],
+    ]);
+    expect(merged.daily).toHaveLength(1);
+    expect(merged.daily[0]?.costUsd).toBe(10);
   });
 
   it("returns empty totals with no environments", () => {

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { buildDayColumns, niceScale } from "./UsageProviderChart";
+import type { UsagePeriodTotals } from "@t3tools/shared/usageMerge";
+import type { UsagePeriod } from "@t3tools/shared/usageFormat";
+import { buildPeriodColumns, niceScale } from "./UsageProviderChart";
 
 describe("niceScale", () => {
   it("never puts the peak above the top of the scale", () => {
@@ -40,13 +42,19 @@ describe("niceScale", () => {
   });
 });
 
-describe("buildDayColumns", () => {
-  const days = ["2026-08-01", "2026-08-02", "2026-08-03"];
-  const byDay = new Map([
+describe("buildPeriodColumns", () => {
+  const periods = [
+    { key: "2026-08-01T00", day: "2026-08-01", startHour: 0 },
+    { key: "2026-08-01T06", day: "2026-08-01", startHour: 6 },
+    { key: "2026-08-01T12", day: "2026-08-01", startHour: 12 },
+  ] satisfies readonly UsagePeriod[];
+  const byPeriod = new Map<string, UsagePeriodTotals>([
     [
-      "2026-08-01",
+      "2026-08-01T00",
       {
+        key: "2026-08-01T00",
         day: "2026-08-01",
+        startHour: 0,
         costUsd: 30,
         totalTokens: 300,
         byProvider: new Map([
@@ -55,11 +63,13 @@ describe("buildDayColumns", () => {
         ]),
       },
     ],
-    // 2026-08-02 is deliberately absent: a day with no activity.
+    // The 06:00 period is deliberately absent: an interval with no activity.
     [
-      "2026-08-03",
+      "2026-08-01T12",
       {
-        day: "2026-08-03",
+        key: "2026-08-01T12",
+        day: "2026-08-01",
+        startHour: 12,
         costUsd: 5,
         totalTokens: 50,
         byProvider: new Map([["claude" as const, { costUsd: 5, totalTokens: 50 }]]),
@@ -67,12 +77,14 @@ describe("buildDayColumns", () => {
     ],
   ]);
 
-  it("plots each day on its own", () => {
-    expect(buildDayColumns(days, byDay, "cost").map((column) => column.total)).toEqual([30, 0, 5]);
+  it("plots each period on its own", () => {
+    expect(buildPeriodColumns(periods, byPeriod, "cost").map((column) => column.total)).toEqual([
+      30, 0, 5,
+    ]);
   });
 
   it("reads the requested metric", () => {
-    expect(buildDayColumns(days, byDay, "tokens").map((column) => column.total)).toEqual([
+    expect(buildPeriodColumns(periods, byPeriod, "tokens").map((column) => column.total)).toEqual([
       300, 0, 50,
     ]);
   });
@@ -80,7 +92,7 @@ describe("buildDayColumns", () => {
   it("keeps band values absolute rather than cumulative", () => {
     // Regression: the bands were once stack offsets, which drew Claude Code
     // permanently above Codex regardless of which provider spent more.
-    const [first] = buildDayColumns(days, byDay, "cost");
+    const [first] = buildPeriodColumns(periods, byPeriod, "cost");
 
     expect(first?.bands).toEqual([
       { provider: "codex", value: 10 },
@@ -89,7 +101,7 @@ describe("buildDayColumns", () => {
   });
 
   it("reports the total as the sum of its bands", () => {
-    for (const column of buildDayColumns(days, byDay, "cost")) {
+    for (const column of buildPeriodColumns(periods, byPeriod, "cost")) {
       const sum = column.bands.reduce((running, band) => running + band.value, 0);
       expect(column.total).toBeCloseTo(sum, 9);
     }

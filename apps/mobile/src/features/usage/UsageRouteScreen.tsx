@@ -1,13 +1,16 @@
 import { useNavigation } from "@react-navigation/native";
+import type { UsageBucketHours } from "@t3tools/contracts";
 import type { MergedUsage } from "@t3tools/shared/usageMerge";
 import {
-  enumerateDays,
+  enumerateUsagePeriods,
   formatCount,
   formatDayShort,
+  formatHourShort,
   formatPercent,
   formatTokens,
   formatUsd,
   makeWindow,
+  type UsagePeriod,
 } from "@t3tools/shared/usageFormat";
 import { useMemo, useState } from "react";
 import { Platform, Pressable, RefreshControl, ScrollView, View } from "react-native";
@@ -42,9 +45,9 @@ export function UsageRouteScreen() {
   const window = useMemo(() => makeWindow(windowDays), [windowDays]);
   const { merged, environments, isPending, isPartial, refresh } = useUsage(window);
 
-  const days = useMemo(
-    () => enumerateDays(window.sinceDay, window.untilDay),
-    [window.sinceDay, window.untilDay],
+  const periods = useMemo(
+    () => enumerateUsagePeriods(window.sinceDay, window.untilDay, window.bucketHours),
+    [window.bucketHours, window.sinceDay, window.untilDay],
   );
 
   // The pull spinner tracks re-scans of environments that have answered
@@ -88,7 +91,8 @@ export function UsageRouteScreen() {
           <>
             <ChartCard
               merged={merged}
-              days={days}
+              periods={periods}
+              bucketHours={window.bucketHours}
               metric={metric}
               onMetricChange={setMetric}
               sinceDay={window.sinceDay}
@@ -139,10 +143,11 @@ function SegmentedControl<Value extends number | string>(props: {
   );
 }
 
-/** Headline figure, the animated daily chart, and its legend, in one card. */
+/** Headline figure, the animated usage chart, and its legend, in one card. */
 function ChartCard(props: {
   readonly merged: MergedUsage;
-  readonly days: readonly string[];
+  readonly periods: readonly UsagePeriod[];
+  readonly bucketHours: UsageBucketHours;
   readonly metric: UsageChartMetric;
   readonly onMetricChange: (metric: UsageChartMetric) => void;
   readonly sinceDay: string;
@@ -173,8 +178,8 @@ function ChartCard(props: {
 
       {hasActivity ? (
         <UsageDailyChart
-          days={props.days}
-          daily={merged.daily}
+          periods={props.periods}
+          totals={merged.periods}
           metric={metric}
           height={CHART_HEIGHT}
         />
@@ -183,6 +188,18 @@ function ChartCard(props: {
           <Text className="text-base text-foreground-muted">No activity in this window.</Text>
         </View>
       )}
+
+      {props.bucketHours === 6 ? (
+        <View className="flex-row">
+          {props.periods.map((period) => (
+            <View key={period.key} className="flex-1 items-center">
+              <Text className="text-xs text-foreground-tertiary">
+                {formatHourShort(period.startHour)}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
 
       <View className="flex-row items-center justify-between">
         <Text className="text-xs text-foreground-tertiary">{formatDayShort(props.sinceDay)}</Text>

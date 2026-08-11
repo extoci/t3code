@@ -1,4 +1,4 @@
-import type { UsageProviderKind } from "@t3tools/contracts";
+import type { UsageBucketHours, UsageProviderKind } from "@t3tools/contracts";
 import { CheckIcon, RefreshCwIcon, XIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -6,7 +6,7 @@ import { isElectron } from "../../env";
 import { cn } from "../../lib/utils";
 import { useUsage, type EnvironmentUsageStatus } from "../../state/usage";
 import {
-  enumerateDays,
+  enumerateUsagePeriods,
   formatCount,
   formatDayShort,
   formatPercent,
@@ -43,9 +43,9 @@ export function UsagePage() {
   // jump as each one lands.
   const settling = isPending || isPartial;
 
-  const days = useMemo(
-    () => enumerateDays(window.sinceDay, window.untilDay),
-    [window.sinceDay, window.untilDay],
+  const periods = useMemo(
+    () => enumerateUsagePeriods(window.sinceDay, window.untilDay, window.bucketHours),
+    [window.bucketHours, window.sinceDay, window.untilDay],
   );
   const recentDays = useMemo(() => merged.daily.toReversed().slice(0, 8), [merged.daily]);
 
@@ -133,7 +133,7 @@ export function UsagePage() {
             {settling ? (
               <>
                 {environments.length > 1 ? <UsageDeviceStrip environments={environments} /> : null}
-                <UsageSkeleton />
+                <UsageSkeleton bucketHours={window.bucketHours} />
               </>
             ) : (
               <>
@@ -201,7 +201,9 @@ export function UsagePage() {
                   <div className="flex flex-col gap-3">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <h2 className="text-sm font-medium text-foreground">
-                        Daily {metric === "tokens" ? "processed tokens" : "cost"}
+                        {window.bucketHours === 6
+                          ? `${metric === "tokens" ? "Processed tokens" : "Cost"} by 6-hour window`
+                          : `Daily ${metric === "tokens" ? "processed tokens" : "cost"}`}
                       </h2>
                       <div className="flex items-center gap-4">
                         <div className="flex overflow-hidden rounded-md border border-border">
@@ -224,7 +226,12 @@ export function UsagePage() {
                         <UsageChartLegend />
                       </div>
                     </div>
-                    <UsageProviderChart days={days} daily={merged.daily} metric={metric} />
+                    <UsageProviderChart
+                      periods={periods}
+                      totals={merged.periods}
+                      bucketHours={window.bucketHours}
+                      metric={metric}
+                    />
                   </div>
                 </section>
 
@@ -517,7 +524,7 @@ const SKELETON_BAR_HEIGHTS = [34, 58, 41, 72, 22, 12, 49, 63, 80, 38, 55, 26, 44
  * chart and metrics strip. No shimmer; blocks fill in exactly once when the
  * last device answers.
  */
-function UsageSkeleton() {
+function UsageSkeleton({ bucketHours }: { readonly bucketHours: UsageBucketHours }) {
   return (
     <>
       <section className="grid gap-6 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
@@ -546,7 +553,9 @@ function UsageSkeleton() {
         </div>
 
         <div className="flex flex-col gap-3">
-          <h2 className="py-1 text-sm font-medium text-foreground">Daily cost</h2>
+          <h2 className="py-1 text-sm font-medium text-foreground">
+            {bucketHours === 6 ? "Cost by 6-hour window" : "Daily cost"}
+          </h2>
           {/* Mirrors the chart's h-56 body and w-14 axis gutter to avoid a
               relayout when the real chart swaps in. */}
           <div className="flex h-56 items-end gap-1 pl-16">

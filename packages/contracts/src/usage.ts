@@ -7,11 +7,12 @@
  * even for turns that were never driven through T3 Code. This mirrors the
  * approach `ccusage` takes.
  *
- * Environments return pre-aggregated `(day, provider, model)` buckets. Raw
+ * Environments return pre-aggregated `(day, startHour, provider, model)` buckets. Raw
  * transcript records never cross the wire.
  *
  * @module usage
  */
+import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
 import { NonNegativeInt, TrimmedNonEmptyString } from "./baseSchemas.ts";
@@ -21,7 +22,7 @@ import { NonNegativeInt, TrimmedNonEmptyString } from "./baseSchemas.ts";
  * client renders partial coverage when an environment reports an older version
  * rather than failing the whole page.
  */
-export const USAGE_CONTRACT_VERSION = 3 as const;
+export const USAGE_CONTRACT_VERSION = 4 as const;
 
 export const UsageProviderKind = Schema.Literals(["claude", "codex"]);
 export type UsageProviderKind = typeof UsageProviderKind.Type;
@@ -38,6 +39,14 @@ export const UsageDay = TrimmedNonEmptyString.check(Schema.isPattern(USAGE_DAY_P
   Schema.brand("UsageDay"),
 );
 export type UsageDay = typeof UsageDay.Type;
+
+/** Width of one reporting bucket. Six-hour buckets are used by the one-day view. */
+export const UsageBucketHours = Schema.Literals([6, 24]);
+export type UsageBucketHours = typeof UsageBucketHours.Type;
+
+/** Local hour at which a reporting bucket begins. */
+export const UsageBucketStartHour = Schema.Literals([0, 6, 12, 18]);
+export type UsageBucketStartHour = typeof UsageBucketStartHour.Type;
 
 /**
  * Why a bucket's cost is what it is.
@@ -68,7 +77,7 @@ export const UsageTokenTotals = Schema.Struct({
 export type UsageTokenTotals = typeof UsageTokenTotals.Type;
 
 /**
- * One `(day, provider, model)` cell.
+ * One `(day, startHour, provider, model)` cell.
  *
  * `costUsd` is the raw API-equivalent cost of these tokens. It is not money
  * spent: subscription plans bill separately. `unpricedRecords` counts records
@@ -77,6 +86,7 @@ export type UsageTokenTotals = typeof UsageTokenTotals.Type;
  */
 export const UsageBucket = Schema.Struct({
   day: UsageDay,
+  startHour: UsageBucketStartHour.pipe(Schema.withDecodingDefault(Effect.succeed(0 as const))),
   provider: UsageProviderKind,
   model: TrimmedNonEmptyString,
   totals: UsageTokenTotals,
@@ -165,6 +175,8 @@ export const UsageSummaryInput = Schema.Struct({
    * any window that crosses a DST boundary.
    */
   timeZone: TrimmedNonEmptyString,
+  /** Requested width of each returned time bucket. */
+  bucketHours: UsageBucketHours.pipe(Schema.withDecodingDefault(Effect.succeed(24 as const))),
 });
 export type UsageSummaryInput = typeof UsageSummaryInput.Type;
 
@@ -174,6 +186,7 @@ export const UsageSummary = Schema.Struct({
   timeZone: TrimmedNonEmptyString,
   sinceDay: UsageDay,
   untilDay: UsageDay,
+  bucketHours: UsageBucketHours.pipe(Schema.withDecodingDefault(Effect.succeed(24 as const))),
   buckets: Schema.Array(UsageBucket),
   sources: Schema.Array(UsageSource),
   pricing: UsagePricing,

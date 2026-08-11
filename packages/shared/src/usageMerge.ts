@@ -9,10 +9,13 @@
 import type {
   EnvironmentId,
   UsageBucket,
+  UsageBucketStartHour,
   UsageProviderKind,
   UsageSourceFingerprint,
   UsageSummary,
 } from "@t3tools/contracts";
+
+import { usagePeriodKey } from "./usageFormat.ts";
 
 export interface EnvironmentUsage {
   readonly environmentId: EnvironmentId;
@@ -45,6 +48,15 @@ export interface DailyTotals {
   readonly byProvider: ReadonlyMap<UsageProviderKind, { costUsd: number; totalTokens: number }>;
 }
 
+export interface UsagePeriodTotals {
+  readonly key: string;
+  readonly day: string;
+  readonly startHour: UsageBucketStartHour;
+  readonly costUsd: number;
+  readonly totalTokens: number;
+  readonly byProvider: ReadonlyMap<UsageProviderKind, { costUsd: number; totalTokens: number }>;
+}
+
 export interface CostQuality {
   readonly providerReportedShare: number;
   readonly modelPricedShare: number;
@@ -65,6 +77,7 @@ export interface MergedUsage {
   readonly providers: readonly ProviderTotals[];
   readonly models: readonly ModelTotals[];
   readonly daily: readonly DailyTotals[];
+  readonly periods: readonly UsagePeriodTotals[];
   readonly costQuality: CostQuality;
   /** Environments whose data was dropped as a duplicate of another's. */
   readonly duplicateSources: readonly string[];
@@ -168,6 +181,7 @@ const EMPTY_MERGED: MergedUsage = {
   providers: [],
   models: [],
   daily: [],
+  periods: [],
   costQuality: {
     providerReportedShare: 0,
     modelPricedShare: 0,
@@ -232,6 +246,16 @@ export function mergeUsage(
       byProvider: Map<UsageProviderKind, { costUsd: number; totalTokens: number }>;
     }
   >();
+  const periodAccumulator = new Map<
+    string,
+    {
+      day: string;
+      startHour: UsageBucketStartHour;
+      costUsd: number;
+      totalTokens: number;
+      byProvider: Map<UsageProviderKind, { costUsd: number; totalTokens: number }>;
+    }
+  >();
   const contributingEnvironments: EnvironmentId[] = [];
 
   for (const environment of current) {
@@ -290,6 +314,25 @@ export function mergeUsage(
       dayProvider.totalTokens += tokens;
       day.byProvider.set(bucket.provider, dayProvider);
       dailyAccumulator.set(bucket.day, day);
+
+      const key = usagePeriodKey(bucket.day, bucket.startHour);
+      const period = periodAccumulator.get(key) ?? {
+        day: bucket.day,
+        startHour: bucket.startHour,
+        costUsd: 0,
+        totalTokens: 0,
+        byProvider: new Map<UsageProviderKind, { costUsd: number; totalTokens: number }>(),
+      };
+      period.costUsd += bucket.costUsd;
+      period.totalTokens += tokens;
+      const periodProvider = period.byProvider.get(bucket.provider) ?? {
+        costUsd: 0,
+        totalTokens: 0,
+      };
+      periodProvider.costUsd += bucket.costUsd;
+      periodProvider.totalTokens += tokens;
+      period.byProvider.set(bucket.provider, periodProvider);
+      periodAccumulator.set(key, period);
     }
   }
 
@@ -326,6 +369,17 @@ export function mergeUsage(
     }))
     .sort((a, b) => a.day.localeCompare(b.day));
 
+  const periods: UsagePeriodTotals[] = [...periodAccumulator.entries()]
+    .map(([key, totals]) => ({
+      key,
+      day: totals.day,
+      startHour: totals.startHour,
+      costUsd: totals.costUsd,
+      totalTokens: totals.totalTokens,
+      byProvider: totals.byProvider,
+    }))
+    .sort((a, b) => a.day.localeCompare(b.day) || a.startHour - b.startHour);
+
   return {
     costUsd,
     uncachedInputTokens,
@@ -339,6 +393,7 @@ export function mergeUsage(
     providers,
     models,
     daily,
+    periods,
     costQuality: {
       providerReportedShare: records === 0 ? 0 : providerReportedRecords / records,
       unpricedShare: records === 0 ? 0 : unpricedRecords / records,

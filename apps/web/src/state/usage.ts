@@ -78,8 +78,9 @@ export function useUsage(input: UsageSummaryInput): UsageView {
         sinceDay: input.sinceDay,
         untilDay: input.untilDay,
         timeZone: input.timeZone,
+        bucketHours: input.bucketHours,
       }),
-    [input.sinceDay, input.untilDay, input.timeZone],
+    [input.bucketHours, input.sinceDay, input.timeZone, input.untilDay],
   );
   const atom = usageByWindowAtom(windowKey);
   const environments = useAtomValue(atom);

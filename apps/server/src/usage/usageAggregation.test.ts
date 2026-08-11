@@ -36,11 +36,12 @@ function record(overrides: Partial<UsageRecord> = {}): UsageRecord {
   };
 }
 
-function aggregate(records: readonly UsageRecord[], timeZone = "UTC") {
+function aggregate(records: readonly UsageRecord[], timeZone = "UTC", bucketHours: 6 | 24 = 24) {
   const aggregator = new UsageAggregator({
     timeZone,
     sinceDay: "2026-08-01",
     untilDay: "2026-08-31",
+    bucketHours,
     rates,
   });
   for (const item of records) aggregator.add(item);
@@ -74,6 +75,26 @@ describe("UsageAggregator", () => {
 
     expect(utc.buckets[0]?.day).toBe("2026-08-07");
     expect(losAngeles.buckets[0]?.day).toBe("2026-08-06");
+  });
+
+  it("splits a day into four six-hour buckets in the requested time zone", () => {
+    const result = aggregate(
+      [
+        record({ timestampMs: Date.parse("2026-08-07T07:00:00Z") }),
+        record({ timestampMs: Date.parse("2026-08-07T13:00:00Z") }),
+        record({ timestampMs: Date.parse("2026-08-07T19:00:00Z") }),
+        record({ timestampMs: Date.parse("2026-08-08T01:00:00Z") }),
+      ],
+      "America/Los_Angeles",
+      6,
+    );
+
+    expect(result.buckets.map((bucket) => [bucket.day, bucket.startHour])).toEqual([
+      ["2026-08-07", 0],
+      ["2026-08-07", 6],
+      ["2026-08-07", 12],
+      ["2026-08-07", 18],
+    ]);
   });
 
   it("prices against the rate table", () => {
@@ -112,6 +133,7 @@ describe("UsageAggregator", () => {
       timeZone: "UTC",
       sinceDay: "2026-08-01",
       untilDay: "2026-08-31",
+      bucketHours: 24,
       rates,
     });
 
