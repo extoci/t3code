@@ -1,5 +1,5 @@
 // @effect-diagnostics nodeBuiltinImport:off - Regression coverage compares shipped CSS with the sidebar width contract.
-import { readFileSync } from "node:fs";
+import * as NodeFS from "node:fs";
 
 import { describe, expect, it } from "vite-plus/test";
 
@@ -36,7 +36,7 @@ describe("thread sidebar width", () => {
   });
 
   it("shows the desktop wordmark across the sidebar's full legal width range", () => {
-    const sidebarStyles = readFileSync(new URL("../index.css", import.meta.url), "utf8");
+    const sidebarStyles = NodeFS.readFileSync(new URL("../index.css", import.meta.url), "utf8");
     const desktopHeaderStyles = sidebarStyles.slice(
       sidebarStyles.indexOf("@media (min-width: 48rem)"),
       sidebarStyles.indexOf("/* Stage-channel sidebar art"),
