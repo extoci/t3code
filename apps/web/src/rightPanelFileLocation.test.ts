@@ -64,4 +64,26 @@ describe("resolveRightPanelFileLocation", () => {
       workspaceRelative: true,
     });
   });
+
+  it("collapses repeated separators in workspace file paths", () => {
+    expect(
+      resolveRightPanelFileLocation("/workspace/t3code", "/workspace/t3code//docs/guide.md"),
+    ).toEqual({
+      cwd: "/workspace/t3code",
+      relativePath: "docs/guide.md",
+      rootLabel: null,
+      workspaceRelative: true,
+    });
+  });
+
+  it("does not treat paths that escape the workspace as workspace files", () => {
+    expect(
+      resolveRightPanelFileLocation("/workspace/t3code", "/workspace/t3code/../personal/SKILL.md"),
+    ).toEqual({
+      cwd: "/workspace/personal",
+      relativePath: "SKILL.md",
+      rootLabel: "personal",
+      workspaceRelative: false,
+    });
+  });
 });

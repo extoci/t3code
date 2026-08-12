@@ -6,11 +6,31 @@ export interface RightPanelFileLocation {
 }
 
 function normalizePath(path: string): string {
-  return path.replaceAll("\\", "/").replace(/\/+$/, "");
+  const slashPath = path.replaceAll("\\", "/");
+  const isUnc = slashPath.startsWith("//");
+  const driveRoot = slashPath.match(/^[A-Za-z]:\//)?.[0];
+  const root = isUnc ? "//" : driveRoot ? driveRoot : slashPath.startsWith("/") ? "/" : "";
+  const protectedSegments = isUnc ? 2 : 0;
+  const segments: string[] = [];
+
+  for (const segment of slashPath.slice(root.length).split("/")) {
+    if (!segment || segment === ".") continue;
+    if (segment === "..") {
+      if (segments.length > protectedSegments && segments.at(-1) !== "..") {
+        segments.pop();
+      } else if (!root) {
+        segments.push(segment);
+      }
+      continue;
+    }
+    segments.push(segment);
+  }
+
+  return `${root}${segments.join("/")}`;
 }
 
 function isWindowsAbsolutePath(path: string): boolean {
-  return /^[A-Za-z]:[\\/]/.test(path) || path.startsWith("\\\\");
+  return /^[A-Za-z]:[\\/]/.test(path) || path.startsWith("\\\\") || path.startsWith("//");
 }
 
 function isAbsolutePath(path: string): boolean {
@@ -56,7 +76,7 @@ export function resolveRightPanelFileLocation(
   }
 
   const relativePath = workspaceRelativePath(filePath, workspaceRoot);
-  if (relativePath) {
+  if (relativePath !== null) {
     return {
       cwd: workspaceRoot,
       relativePath,
@@ -65,10 +85,14 @@ export function resolveRightPanelFileLocation(
     };
   }
 
-  const cwd = absolutePathParent(filePath);
+  const normalizedFilePath = normalizePath(filePath);
+  const filePathWithOriginalSeparators = filePath.includes("\\")
+    ? normalizedFilePath.replaceAll("/", "\\")
+    : normalizedFilePath;
+  const cwd = absolutePathParent(filePathWithOriginalSeparators);
   return {
     cwd,
-    relativePath: basename(filePath),
+    relativePath: basename(filePathWithOriginalSeparators),
     rootLabel: basename(cwd) || cwd,
     workspaceRelative: false,
   };
