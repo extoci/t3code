@@ -3434,6 +3434,13 @@ function ChatViewContent(props: ChatViewProps) {
     },
     [activeThreadRef, diffOpen, onDiffPanelOpen],
   );
+  const reorderRightPanelSurface = useCallback(
+    (surfaceId: string, targetSurfaceId: string) => {
+      if (!activeThreadRef) return;
+      useRightPanelStore.getState().reorderSurface(activeThreadRef, surfaceId, targetSurfaceId);
+    },
+    [activeThreadRef],
+  );
   const toggleRightPanel = useCallback(() => {
     if (!activeThreadRef) return;
     if (rightPanelOpen) {
@@ -6548,6 +6555,7 @@ function ChatViewContent(props: ChatViewProps) {
           onCloseOtherSurfaces={closeOtherRightPanelSurfaces}
           onCloseSurfacesToRight={closeRightPanelSurfacesToRight}
           onCloseAllSurfaces={closeAllRightPanelSurfaces}
+          onReorderSurface={reorderRightPanelSurface}
           onCopyFilePath={copyRightPanelFilePath}
           onAddBrowser={createBrowserSurface}
           onAddTerminal={addTerminalSurface}
@@ -6582,6 +6590,7 @@ function ChatViewContent(props: ChatViewProps) {
             onCloseOtherSurfaces={closeOtherRightPanelSurfaces}
             onCloseSurfacesToRight={closeRightPanelSurfacesToRight}
             onCloseAllSurfaces={closeAllRightPanelSurfaces}
+            onReorderSurface={reorderRightPanelSurface}
             onCopyFilePath={copyRightPanelFilePath}
             onAddBrowser={createBrowserSurface}
             onAddTerminal={addTerminalSurface}

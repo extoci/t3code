@@ -1511,6 +1511,10 @@ function PullRequestsRouteView() {
     useRightPanelStore.getState().closeAllSurfaces(rightPanelRef);
     selectSurfaceInUrl(null);
   };
+  const reorderSurface = (surfaceId: string, targetSurfaceId: string) => {
+    if (rightPanelRef === null) return;
+    useRightPanelStore.getState().reorderSurface(rightPanelRef, surfaceId, targetSurfaceId);
+  };
 
   return (
     <SidebarInset className="h-dvh min-h-0 overflow-hidden overscroll-y-none bg-background text-foreground">
@@ -1544,6 +1548,7 @@ function PullRequestsRouteView() {
               if (surface.kind === "pull-request") closeSurfacesToRight(surface);
             }}
             onCloseAllSurfaces={closeAllSurfaces}
+            onReorderSurface={reorderSurface}
             onCopyFilePath={() => undefined}
             onAddBrowser={() => undefined}
             onAddTerminal={() => undefined}
