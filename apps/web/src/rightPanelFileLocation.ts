@@ -20,8 +20,7 @@ function isAbsolutePath(path: string): boolean {
 function workspaceRelativePath(path: string, workspaceRoot: string): string | null {
   const normalizedPath = normalizePath(path);
   const normalizedRoot = normalizePath(workspaceRoot);
-  const caseInsensitive =
-    /^[A-Za-z]:\//.test(normalizedPath) || /^[A-Za-z]:\//.test(normalizedRoot);
+  const caseInsensitive = isWindowsAbsolutePath(path) || isWindowsAbsolutePath(workspaceRoot);
   const comparablePath = caseInsensitive ? normalizedPath.toLowerCase() : normalizedPath;
   const comparableRoot = caseInsensitive ? normalizedRoot.toLowerCase() : normalizedRoot;
   if (!comparablePath.startsWith(`${comparableRoot}/`)) return null;

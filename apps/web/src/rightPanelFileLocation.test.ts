@@ -50,4 +50,18 @@ describe("resolveRightPanelFileLocation", () => {
       "C:\\Users\\test\\.codex\\skills\\review-follow-up\\references\\checklist.md",
     );
   });
+
+  it("matches UNC workspace paths without case sensitivity", () => {
+    expect(
+      resolveRightPanelFileLocation(
+        "\\\\server\\share\\project",
+        "\\\\Server\\Share\\project\\.codex\\skills\\review-follow-up\\SKILL.md",
+      ),
+    ).toEqual({
+      cwd: "\\\\server\\share\\project",
+      relativePath: ".codex/skills/review-follow-up/SKILL.md",
+      rootLabel: null,
+      workspaceRelative: true,
+    });
+  });
 });
