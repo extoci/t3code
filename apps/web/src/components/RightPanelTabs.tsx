@@ -547,11 +547,11 @@ function SortableSurfaceTab(props: {
       onAuxClick={(event) => props.onAuxClick(event, props.surface)}
       onContextMenu={(event) => props.onContextMenu(event, props.surface)}
       className={cn(
-        "cursor-pointer group/tab flex h-6 max-w-36 shrink-0 items-center gap-0.5 rounded-md pr-2 pl-1.5 text-xs [-webkit-app-region:no-drag]",
+        "cursor-grab group/tab flex h-6 max-w-36 shrink-0 items-center gap-0.5 rounded-md pr-2 pl-1.5 text-xs [-webkit-app-region:no-drag]",
         props.active
           ? "bg-accent text-foreground"
           : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
-        isDragging && "z-10 opacity-70",
+        isDragging && "z-10 cursor-grabbing opacity-70",
       )}
     >
       <button
@@ -582,7 +582,7 @@ function SortableSurfaceTab(props: {
           render={
             <button
               type="button"
-              className="cursor-pointer flex min-w-0 items-center"
+              className="cursor-grab flex min-w-0 items-center active:cursor-grabbing"
               onClick={() => props.onActivate(props.surface)}
             >
               <span className="truncate">{props.title}</span>
