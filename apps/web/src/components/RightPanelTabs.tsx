@@ -47,6 +47,7 @@ import { COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS } from "~/workspaceTitlebar";
 
 import { PreviewPanelShell, type PreviewPanelMode } from "./preview/PreviewPanelShell";
 import { PierreEntryIcon } from "./chat/PierreEntryIcon";
+import { scrollActiveRightPanelTabIntoView } from "./rightPanelTabs.logic";
 
 interface RightPanelTabsProps {
   mode: PreviewPanelMode;
@@ -704,8 +705,8 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
 
   useEffect(() => {
     const activeTab = tabListRef.current?.querySelector<HTMLElement>("[data-active-tab='true']");
-    activeTab?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [props.activeSurfaceId]);
+    scrollActiveRightPanelTabIntoView(activeTab ?? null, tabDragActive);
+  }, [props.activeSurfaceId, tabDragActive]);
 
   return (
     <PreviewPanelShell
