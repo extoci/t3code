@@ -518,6 +518,7 @@ function SurfaceIcon({
 function SortableSurfaceTab(props: {
   surface: RightPanelSurface;
   active: boolean;
+  tabDragActive: boolean;
   pending: boolean;
   title: string;
   sessions: Readonly<Record<string, PreviewSessionSnapshot>>;
@@ -547,16 +548,20 @@ function SortableSurfaceTab(props: {
       onAuxClick={(event) => props.onAuxClick(event, props.surface)}
       onContextMenu={(event) => props.onContextMenu(event, props.surface)}
       className={cn(
-        "cursor-pointer group/tab flex h-6 max-w-36 shrink-0 items-center gap-0.5 rounded-md pr-2 pl-1.5 text-xs [-webkit-app-region:no-drag]",
+        "group/tab flex h-6 max-w-36 shrink-0 items-center gap-0.5 rounded-md pr-2 pl-1.5 text-xs [-webkit-app-region:no-drag]",
+        props.tabDragActive ? "cursor-grabbing" : "cursor-pointer",
         props.active
           ? "bg-accent text-foreground"
           : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
-        isDragging && "z-10 cursor-grabbing opacity-70",
+        isDragging && "z-10 opacity-70",
       )}
     >
       <button
         type="button"
-        className="cursor-pointer group/close relative flex size-4 shrink-0 items-center justify-center rounded-sm hover:bg-muted"
+        className={cn(
+          "group/close relative flex size-4 shrink-0 items-center justify-center rounded-sm hover:bg-muted",
+          props.tabDragActive ? "cursor-grabbing" : "cursor-pointer",
+        )}
         aria-label={`Close ${props.title}`}
         onPointerDown={(event) => event.stopPropagation()}
         onClick={() => props.onClose(props.surface)}
@@ -582,7 +587,10 @@ function SortableSurfaceTab(props: {
           render={
             <button
               type="button"
-              className="cursor-pointer flex min-w-0 items-center"
+              className={cn(
+                "flex min-w-0 items-center",
+                props.tabDragActive ? "cursor-grabbing" : "cursor-pointer",
+              )}
               onClick={() => props.onActivate(props.surface)}
             >
               <span className="truncate">{props.title}</span>
@@ -599,6 +607,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
   const ownsDesktopTitleBar = isElectron && props.mode === "inline";
   const { resolvedTheme } = useTheme();
   const tabListRef = useRef<HTMLDivElement>(null);
+  const [tabDragActive, setTabDragActive] = useState(false);
   const tabSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
   );
@@ -675,6 +684,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
   );
   const handleTabDragEnd = useCallback(
     (event: DragEndEvent) => {
+      setTabDragActive(false);
       const targetSurfaceId = event.over?.id;
       if (targetSurfaceId === undefined || event.active.id === targetSurfaceId) return;
       props.onReorderSurface(String(event.active.id), String(targetSurfaceId));
@@ -683,12 +693,14 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
   );
   const handleTabDragStart = useCallback(
     (event: DragStartEvent) => {
+      setTabDragActive(true);
       const surface = props.surfaces.find((entry) => entry.id === String(event.active.id));
       if (!surface || surface.id === props.activeSurfaceId) return;
       props.onActivate(surface);
     },
     [props],
   );
+  const handleTabDragCancel = useCallback(() => setTabDragActive(false), []);
 
   useEffect(() => {
     const activeTab = tabListRef.current?.querySelector<HTMLElement>("[data-active-tab='true']");
@@ -724,18 +736,25 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
             collisionDetection={closestCenter}
             modifiers={[restrictToHorizontalAxis, restrictToFirstScrollableAncestor]}
             onDragStart={handleTabDragStart}
+            onDragCancel={handleTabDragCancel}
             onDragEnd={handleTabDragEnd}
           >
             <SortableContext
               items={props.surfaces.map((surface) => surface.id)}
               strategy={horizontalListSortingStrategy}
             >
-              <div className="flex h-full w-max min-w-full items-center gap-1">
+              <div
+                className={cn(
+                  "flex h-full w-max min-w-full items-center gap-1",
+                  tabDragActive && "cursor-grabbing",
+                )}
+              >
                 {props.surfaces.map((surface) => (
                   <SortableSurfaceTab
                     key={surface.id}
                     surface={surface}
                     active={surface.id === props.activeSurfaceId}
+                    tabDragActive={tabDragActive}
                     pending={props.pendingSurfaceIds.has(surface.id)}
                     title={surfaceTitle(surface, props.previewSessions, props.terminalLabelsById)}
                     sessions={props.previewSessions}
@@ -751,7 +770,10 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
                 {props.surfaces.length > 0 ? (
                   <Menu>
                     <MenuTrigger
-                      className="cursor-pointer relative inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+                      className={cn(
+                        "relative inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground",
+                        tabDragActive ? "cursor-grabbing" : "cursor-pointer",
+                      )}
                       aria-label="Add panel surface"
                     >
                       <Plus className="size-3.5" />
