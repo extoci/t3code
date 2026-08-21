@@ -5246,12 +5246,14 @@ function ChatViewContent(props: ChatViewProps) {
       return;
     }
 
+    const resolvedSubmissionIntent =
+      submissionIntent === "background" && isLocalDraftThread ? "background" : "foreground";
     sendInFlightRef.current = true;
     if (
       shouldDockDraftHeroForSubmission({
         isDraftHeroState,
         activeThreadKey,
-        submissionIntent,
+        submissionIntent: resolvedSubmissionIntent,
       }) &&
       activeThreadKey
     ) {
@@ -5271,7 +5273,7 @@ function ChatViewContent(props: ChatViewProps) {
     }
     beginLocalDispatch({
       preparingWorktree: Boolean(baseBranchForWorktree),
-      submissionIntent,
+      submissionIntent: resolvedSubmissionIntent,
     });
 
     const messageIdForSend = newMessageId();
@@ -5457,7 +5459,7 @@ function ChatViewContent(props: ChatViewProps) {
       } else {
         turnStartSucceeded = true;
         acknowledgeActiveThreadWoke();
-        if (submissionIntent === "background" && isLocalDraftThread) {
+        if (resolvedSubmissionIntent === "background") {
           const backgroundThreadRef = scopeThreadRef(activeThread.environmentId, threadIdForSend);
           markPromotedDraftThreadByRef(backgroundThreadRef);
           try {
