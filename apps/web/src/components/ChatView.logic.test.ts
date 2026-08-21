@@ -27,6 +27,7 @@ import {
   reconcileMountedTerminalThreadIds,
   reconcileRetainedMountedThreadIds,
   resolveBackgroundDraftWorkspaceOptions,
+  resolveDraftPromotionNavigationTarget,
   resolveThreadMetadataUpdateForNextTurn,
   resolveSendEnvMode,
   resolveDraftHeroState,
@@ -63,6 +64,16 @@ describe("draft hero submission transition", () => {
         backgroundSubmissionPending: true,
       }),
     ).toBe(true);
+  });
+
+  it("does not auto-navigate a background submission after server promotion", () => {
+    expect(
+      resolveDraftPromotionNavigationTarget({
+        serverThreadRef: { environmentId, threadId },
+        serverThreadStarted: true,
+        backgroundSubmissionPending: true,
+      }),
+    ).toBeNull();
   });
 });
 

@@ -213,6 +213,8 @@ import {
 import { buildPhysicalToLogicalProjectKeyMap } from "../sidebarProjectGrouping";
 import { buildDraftThreadRouteParams, buildThreadRouteParams } from "../threadRoutes";
 import {
+  beginBackgroundDraftSubmissionByRef,
+  clearBackgroundDraftSubmissionByRef,
   type ComposerImageAttachment,
   type DraftThreadEnvMode,
   finalizePromotedDraftThreadByRef,
@@ -5436,6 +5438,13 @@ function ChatViewContent(props: ChatViewProps) {
             }
           : undefined;
       beginLocalDispatch({ preparingWorktree: false });
+      const backgroundThreadRef =
+        resolvedSubmissionIntent === "background"
+          ? scopeThreadRef(activeThread.environmentId, threadIdForSend)
+          : null;
+      if (backgroundThreadRef) {
+        beginBackgroundDraftSubmissionByRef(backgroundThreadRef);
+      }
       const startResult = await startThreadTurn({
         environmentId,
         input: {
@@ -5455,12 +5464,14 @@ function ChatViewContent(props: ChatViewProps) {
         },
       });
       if (startResult._tag === "Failure") {
+        if (backgroundThreadRef) {
+          clearBackgroundDraftSubmissionByRef(backgroundThreadRef);
+        }
         failure = startResult;
       } else {
         turnStartSucceeded = true;
         acknowledgeActiveThreadWoke();
-        if (resolvedSubmissionIntent === "background") {
-          const backgroundThreadRef = scopeThreadRef(activeThread.environmentId, threadIdForSend);
+        if (backgroundThreadRef) {
           markPromotedDraftThreadByRef(backgroundThreadRef);
           try {
             const nextDraft = await handleNewThread(
@@ -5489,8 +5500,11 @@ function ChatViewContent(props: ChatViewProps) {
                   },
                 }),
               );
+            } else {
+              clearBackgroundDraftSubmissionByRef(backgroundThreadRef);
             }
           } catch (error) {
+            clearBackgroundDraftSubmissionByRef(backgroundThreadRef);
             resetLocalDispatch();
             toastManager.add(
               stackedThreadToast({
