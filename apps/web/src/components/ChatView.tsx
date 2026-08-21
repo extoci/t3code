@@ -5471,20 +5471,22 @@ function ChatViewContent(props: ChatViewProps) {
             );
             if (nextDraft) {
               finalizePromotedDraftThreadByRef(backgroundThreadRef);
-              toastManager.add({
-                type: "success",
-                title: "Started in background",
-                timeout: 5_000,
-                actionProps: {
-                  children: "Open",
-                  onClick: () => {
-                    void navigate({
-                      to: "/$environmentId/$threadId",
-                      params: buildThreadRouteParams(backgroundThreadRef),
-                    });
+              toastManager.add(
+                stackedThreadToast({
+                  type: "success",
+                  title: "Started in background",
+                  timeout: 5_000,
+                  actionProps: {
+                    children: "Open",
+                    onClick: () => {
+                      void navigate({
+                        to: "/$environmentId/$threadId",
+                        params: buildThreadRouteParams(backgroundThreadRef),
+                      });
+                    },
                   },
-                },
-              });
+                }),
+              );
             }
           } catch (error) {
             resetLocalDispatch();
