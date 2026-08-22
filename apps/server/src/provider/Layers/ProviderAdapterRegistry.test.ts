@@ -18,6 +18,7 @@ import * as ProviderAdapterRegistry from "../Services/ProviderAdapterRegistry.ts
 import * as ProviderInstanceRegistry from "../Services/ProviderInstanceRegistry.ts";
 import type { ProviderInstance } from "../ProviderDriver.ts";
 import { makeManualOnlyProviderMaintenanceCapabilities } from "../providerMaintenance.ts";
+import { emptyProviderSkillCatalog } from "../ProviderSkillCatalog.ts";
 import type * as TextGeneration from "../../textGeneration/TextGeneration.ts";
 import * as ProviderAdapterRegistryLayer from "./ProviderAdapterRegistry.ts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -123,6 +124,7 @@ const makeFakeInstance = (
       refresh: Effect.succeed({} as unknown as ServerProvider),
       streamChanges: Stream.empty,
     },
+    skillCatalog: emptyProviderSkillCatalog,
     adapter,
     textGeneration: {} as unknown as TextGeneration.TextGeneration["Service"],
   };

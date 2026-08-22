@@ -10,6 +10,7 @@ import { createModelSelection } from "@t3tools/shared/model";
 
 import type { ProviderInstance } from "../provider/ProviderDriver.ts";
 import * as ProviderInstanceRegistry from "../provider/Services/ProviderInstanceRegistry.ts";
+import { emptyProviderSkillCatalog } from "../provider/ProviderSkillCatalog.ts";
 import * as TextGeneration from "./TextGeneration.ts";
 
 const makeStubTextGeneration = (
@@ -38,6 +39,7 @@ const makeStubInstance = (
     displayName: undefined,
     enabled: true,
     snapshot: {} as ProviderInstance["snapshot"],
+    skillCatalog: emptyProviderSkillCatalog,
     adapter: {} as ProviderInstance["adapter"],
     textGeneration,
   }) satisfies ProviderInstance;

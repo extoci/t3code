@@ -1,4 +1,5 @@
 import { type EnvironmentConnectionPhase } from "@t3tools/client-runtime/connection";
+import { resolveActiveProjectCwd } from "@t3tools/client-runtime/providerSkills";
 import type { EnvironmentThreadStatus } from "@t3tools/client-runtime/state/threads";
 import { useKeyboardChatComposerInset, useKeyboardScrollToEnd } from "@legendapp/list/keyboard";
 import type { LegendListRef } from "@legendapp/list/react-native";
@@ -17,16 +18,7 @@ import type {
   UserInputQuestion,
 } from "@t3tools/contracts";
 import * as Haptics from "expo-haptics";
-import {
-  memo,
-  useCallback,
-  useContext,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { memo, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { isLiquidGlassSupported, LiquidGlassView } from "@callstack/liquid-glass";
 import {
   AppState,
@@ -65,6 +57,8 @@ import type {
   PendingUserInputDraftAnswer,
   ThreadFeedEntry,
 } from "../../lib/threadActivity";
+import { useEnvironmentQuery } from "../../state/query";
+import { serverEnvironment } from "../../state/server";
 import { PendingApprovalCard } from "./PendingApprovalCard";
 import { PendingUserInputCard } from "./PendingUserInputCard";
 import {
@@ -447,13 +441,27 @@ export const ThreadDetailScreen = memo(function ThreadDetailScreen(props: Thread
   const contentMaxWidth = isSplitLayout ? CHAT_CONTENT_MAX_WIDTH : undefined;
   const selectedInstanceId = props.selectedThread.modelSelection.instanceId;
   useStreamingHaptics(props.selectedThread.id, props.selectedThreadFeed);
-  const selectedProviderSkills = useMemo(
-    () =>
-      props.serverConfig?.providers.find((provider) => provider.instanceId === selectedInstanceId)
-        ?.skills ?? [],
-    [props.serverConfig, selectedInstanceId],
+  const providerSkillsCwd = resolveActiveProjectCwd(
+    props.selectedThread,
+    props.projectWorkspaceRoot ? { workspaceRoot: props.projectWorkspaceRoot } : null,
   );
-
+  const providerSkillsSupported =
+    props.serverConfig?.environment.capabilities.providerSkills === true;
+  const selectedProviderStatus = props.serverConfig?.providers.find(
+    (provider) => provider.instanceId === selectedInstanceId,
+  );
+  const providerSkillsQuery = useEnvironmentQuery(
+    providerSkillsSupported && providerSkillsCwd
+      ? serverEnvironment.providerSkills({
+          environmentId: props.environmentId,
+          input: { instanceId: selectedInstanceId, cwd: providerSkillsCwd },
+          ...(selectedProviderStatus ? { cacheKey: selectedProviderStatus.checkedAt } : {}),
+        })
+      : null,
+  );
+  const selectedProviderSkills = providerSkillsSupported
+    ? (providerSkillsQuery.data?.skills ?? [])
+    : (selectedProviderStatus?.skills ?? []);
   useLayoutEffect(() => {
     selectedThreadKeyRef.current = selectedThreadKey;
   }, [selectedThreadKey]);
@@ -751,6 +759,7 @@ export const ThreadDetailScreen = memo(function ThreadDetailScreen(props: Thread
                 threadSyncPhase={threadSyncPhase}
                 selectedThread={props.selectedThread}
                 serverConfig={props.serverConfig}
+                providerSkills={selectedProviderSkills}
                 queueCount={props.selectedThreadQueueCount}
                 environmentId={props.environmentId}
                 projectCwd={props.projectWorkspaceRoot}

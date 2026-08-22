@@ -3,6 +3,7 @@ import {
   type ModelCapabilities,
   type ModelSelection,
   type ServerProviderModel,
+  type ServerProviderSkill,
   type ServerProviderSlashCommand,
 } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
@@ -926,7 +927,9 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
   const capabilities = resolveCapabilities
     ? yield* resolveCapabilities(claudeSettings).pipe(Effect.orElseSucceed(() => undefined))
     : undefined;
-  const skills = yield* discoverClaudeSkills(claudeSettings, cwd, resolvedEnvironment);
+  const skills = yield* discoverClaudeSkills(claudeSettings, cwd, resolvedEnvironment).pipe(
+    Effect.orElseSucceed((): ReadonlyArray<ServerProviderSkill> => []),
+  );
   const slashCommands = capabilities?.slashCommands ?? [];
   const dedupedSlashCommands = dedupeSlashCommands(slashCommands);
 

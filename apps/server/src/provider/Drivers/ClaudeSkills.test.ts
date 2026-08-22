@@ -301,4 +301,20 @@ it.layer(NodeServices.layer)("discoverClaudeSkills", (it) => {
       assert.deepEqual(skills, []);
     }),
   );
+
+  it.effect("fails when a skill root exists but cannot be read as a directory", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const tempDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-claude-skills-" });
+      const configDir = path.join(tempDir, "claude-home");
+      yield* fs.makeDirectory(configDir, { recursive: true });
+      yield* fs.writeFileString(path.join(configDir, "skills"), "not a directory");
+
+      const error = yield* Effect.flip(discoverClaudeSkills({ homePath: configDir }));
+
+      assert.equal(error._tag, "PlatformError");
+      assert.notEqual(error.reason._tag, "NotFound");
+    }),
+  );
 });

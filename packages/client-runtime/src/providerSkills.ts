@@ -2,6 +2,13 @@ import type { ServerProviderSkill } from "@t3tools/contracts";
 
 export type ProviderSkillSourceKind = "app" | "repo" | "project" | "personal" | "system" | "other";
 
+export function resolveActiveProjectCwd(
+  thread: { readonly worktreePath?: string | null } | null | undefined,
+  project: { readonly workspaceRoot: string } | null | undefined,
+): string | null {
+  return thread?.worktreePath ?? project?.workspaceRoot ?? null;
+}
+
 function titleCaseWords(value: string): string {
   const words: string[] = [];
   for (const segment of value.split(/[\s:_-]+/)) {

@@ -36,8 +36,11 @@ the rest of your environment stay as they are.
 
 ## Where Claude Skills Are Loaded
 
-T3 Code looks for Claude skills in the Claude config directory's `skills` folder, then
-`<workspace>/.agents/skills`, then `<workspace>/.claude/skills`.
+T3 Code looks for Claude skills in the Claude config directory's `skills` folder, then in the
+active project directory's `.agents/skills` and `.claude/skills` folders. If the thread uses a
+worktree, T3 Code uses that worktree as the active directory.
+
+When you switch projects or worktrees, the picker updates without a server restart.
 
 If the same skill name exists in more than one folder, the later folder wins.
 

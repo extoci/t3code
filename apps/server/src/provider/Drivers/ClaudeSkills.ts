@@ -17,6 +17,7 @@ import type { ClaudeSettings, ServerProviderSkill } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
+import * as PlatformError from "effect/PlatformError";
 import { parse as parseYamlDocument } from "yaml";
 
 import { expandHomePath } from "../../pathExpansion.ts";
@@ -87,16 +88,20 @@ const resolveClaudeConfigDirPath = Effect.fn("resolveClaudeConfigDirPath")(funct
 /**
  * Enumerate Claude Code skills from the user config dir, workspace
  * `.agents/skills`, and workspace `.claude/skills`, in that order. Discovery
- * is best-effort: unreadable roots and malformed skill entries are skipped so
- * a broken skill never degrades the provider snapshot. On name collisions,
- * later roots win: `.agents` beats user and `.claude` beats `.agents`, matching
- * Claude Code's resolution.
+ * ignores missing roots and malformed skill entries. Other filesystem errors
+ * fail discovery so callers can keep their last successful result. On name
+ * collisions, later roots win: `.agents` beats user and `.claude` beats
+ * `.agents`, matching Claude Code's resolution.
  */
 export const discoverClaudeSkills = Effect.fn("discoverClaudeSkills")(function* (
   config: Pick<ClaudeSettings, "homePath">,
   cwd?: string,
   environment?: NodeJS.ProcessEnv,
-): Effect.fn.Return<ReadonlyArray<ServerProviderSkill>, never, FileSystem.FileSystem | Path.Path> {
+): Effect.fn.Return<
+  ReadonlyArray<ServerProviderSkill>,
+  PlatformError.PlatformError,
+  FileSystem.FileSystem | Path.Path
+> {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const configDirPath = yield* resolveClaudeConfigDirPath(config, environment ?? process.env, cwd);
@@ -113,15 +118,26 @@ export const discoverClaudeSkills = Effect.fn("discoverClaudeSkills")(function* 
 
   const skillsByName = new Map<string, ServerProviderSkill>();
   for (const root of roots) {
-    const entries = yield* fileSystem
-      .readDirectory(root.directory)
-      .pipe(Effect.orElseSucceed((): ReadonlyArray<string> => []));
+    const entries = yield* fileSystem.readDirectory(root.directory).pipe(
+      Effect.catchTags({
+        PlatformError: (error) =>
+          error.reason._tag === "NotFound"
+            ? Effect.succeed<ReadonlyArray<string>>([])
+            : Effect.fail(error),
+      }),
+    );
 
     for (const entry of [...entries].sort()) {
       const skillPath = path.join(root.directory, entry, "SKILL.md");
-      const contents = yield* fileSystem
-        .readFileString(skillPath)
-        .pipe(Effect.orElseSucceed(() => undefined));
+      const contents = yield* fileSystem.readFileString(skillPath).pipe(
+        Effect.map((contents): string | undefined => contents),
+        Effect.catchTags({
+          PlatformError: (error) =>
+            error.reason._tag === "NotFound" || error.reason._tag === "BadResource"
+              ? Effect.void
+              : Effect.fail(error),
+        }),
+      );
       if (contents === undefined) {
         continue;
       }

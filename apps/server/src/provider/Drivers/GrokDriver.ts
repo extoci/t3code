@@ -20,6 +20,7 @@ import {
 } from "../Layers/GrokProvider.ts";
 import { ProviderEventLoggers } from "../Layers/ProviderEventLoggers.ts";
 import { makeManagedServerProvider } from "../makeManagedServerProvider.ts";
+import { emptyProviderSkillCatalog } from "../ProviderSkillCatalog.ts";
 import {
   defaultProviderContinuationIdentity,
   type ProviderDriver,
@@ -156,6 +157,7 @@ export const GrokDriver: ProviderDriver<GrokSettings, GrokDriverEnv> = {
         accentColor,
         enabled,
         snapshot,
+        skillCatalog: emptyProviderSkillCatalog,
         adapter,
         textGeneration,
       } satisfies ProviderInstance;

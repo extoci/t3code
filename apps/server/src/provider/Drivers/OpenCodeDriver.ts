@@ -29,11 +29,20 @@ import { ProviderDriverError } from "../Errors.ts";
 import { makeOpenCodeAdapter } from "../Layers/OpenCodeAdapter.ts";
 import {
   checkOpenCodeProviderStatus,
+  flattenOpenCodeSkills,
   makePendingOpenCodeProvider,
 } from "../Layers/OpenCodeProvider.ts";
 import { ProviderEventLoggers } from "../Layers/ProviderEventLoggers.ts";
 import { makeManagedServerProvider } from "../makeManagedServerProvider.ts";
-import { OpenCodeRuntime } from "../opencodeRuntime.ts";
+import {
+  decodeOpenCodeSkillsCliOutput,
+  OpenCodeRuntime,
+  type OpenCodeInventory,
+} from "../opencodeRuntime.ts";
+import {
+  makeCachedProviderSkillCatalog,
+  providerSkillDiscoveryFailed,
+} from "../ProviderSkillCatalog.ts";
 import {
   defaultProviderContinuationIdentity,
   type ProviderDriver,
@@ -142,6 +151,52 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
         ...(eventLoggers.native ? { nativeEventLogger: eventLoggers.native } : {}),
       });
       const textGeneration = yield* makeOpenCodeTextGeneration(effectiveConfig, processEnv);
+      const skillCatalog = makeCachedProviderSkillCatalog((requestedCwd) => {
+        if (effectiveConfig.serverUrl) {
+          return Effect.scoped(
+            Effect.gen(function* () {
+              const server = yield* openCodeRuntime.connectToOpenCodeServer({
+                binaryPath: effectiveConfig.binaryPath,
+                serverUrl: effectiveConfig.serverUrl,
+                environment: processEnv,
+              });
+              const inventory = yield* openCodeRuntime.loadOpenCodeInventory(
+                openCodeRuntime.createOpenCodeSdkClient({
+                  baseUrl: server.url,
+                  directory: requestedCwd,
+                  ...(effectiveConfig.serverPassword
+                    ? { serverPassword: effectiveConfig.serverPassword }
+                    : {}),
+                }),
+              );
+              return flattenOpenCodeSkills(inventory);
+            }),
+          ).pipe(Effect.mapError(providerSkillDiscoveryFailed));
+        }
+        return Effect.gen(function* () {
+          const result = yield* openCodeRuntime
+            .runOpenCodeCommand({
+              binaryPath: effectiveConfig.binaryPath,
+              args: ["debug", "skill"],
+              cwd: requestedCwd,
+              environment: processEnv,
+            })
+            .pipe(Effect.mapError(providerSkillDiscoveryFailed));
+          if (result.code !== 0) {
+            return yield* providerSkillDiscoveryFailed(
+              `OpenCode skill discovery exited with code ${result.code}.`,
+            );
+          }
+          const skills = yield* decodeOpenCodeSkillsCliOutput(result.stdout).pipe(
+            Effect.mapError(providerSkillDiscoveryFailed),
+          );
+          return flattenOpenCodeSkills({
+            providerList: { all: [], default: {}, connected: [] },
+            agents: [],
+            skills,
+          } satisfies OpenCodeInventory);
+        });
+      });
 
       const checkProvider = checkOpenCodeProviderStatus(
         effectiveConfig,
@@ -187,6 +242,7 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
         accentColor,
         enabled,
         snapshot,
+        skillCatalog,
         adapter,
         textGeneration,
       } satisfies ProviderInstance;

@@ -136,6 +136,9 @@ const OpenCodeSkillSchema = Schema.Struct({
 const decodeOpenCodeSkillsCliOutputExit = Schema.decodeUnknownExit(
   Schema.fromJsonString(Schema.Array(OpenCodeSkillSchema)),
 );
+export const decodeOpenCodeSkillsCliOutput = Schema.decodeUnknownEffect(
+  Schema.fromJsonString(Schema.Array(OpenCodeSkillSchema)),
+);
 
 export interface OpenCodeRuntimeShape {
   /**

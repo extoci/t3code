@@ -92,6 +92,14 @@ click the blurred email to reveal it.
 
 Use display names and accent colors to make accounts easy to tell apart in the model picker.
 
+## Where Codex Skills Are Loaded
+
+The skill picker loads Codex skills for the active project directory. If the thread uses a
+worktree, it loads skills for that worktree instead. Personal skills stay available in every
+project.
+
+When you switch projects or worktrees, the picker updates without a server restart.
+
 ## I Need A Different API Key Or Endpoint
 
 Use the provider's Environment variables section in Settings.

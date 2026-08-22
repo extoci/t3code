@@ -39,6 +39,7 @@ import { scopedProjectKey } from "../../lib/scopedEntities";
 import { appAtomRegistry } from "../../state/atom-registry";
 import { projectEnvironment } from "../../state/projects";
 import { useEnvironmentQuery } from "../../state/query";
+import { serverEnvironment } from "../../state/server";
 import {
   appendComposerDraftAttachments,
   clearComposerDraft,
@@ -68,6 +69,7 @@ import {
   setPendingConnectionError,
   useSavedRemoteConnections,
 } from "../../state/use-remote-environment-registry";
+import { resolveActiveProjectCwd } from "@t3tools/client-runtime/providerSkills";
 import { EnvironmentProject } from "@t3tools/client-runtime/state/shell";
 import { type VcsRef } from "@t3tools/client-runtime/state/vcs";
 import {
@@ -444,13 +446,24 @@ export function NewTaskFlowProvider(props: React.PropsWithChildren) {
         option.selection.instanceId === selectedModel.instanceId &&
         option.selection.model === selectedModel.model,
     ) ?? null;
-  const selectedProviderSkills = useMemo(
-    () =>
-      selectedEnvironmentServerConfig?.providers.find(
-        (provider) => provider.instanceId === selectedModel?.instanceId,
-      )?.skills ?? [],
-    [selectedEnvironmentServerConfig, selectedModel?.instanceId],
+  const providerSkillsCwd = resolveActiveProjectCwd(null, selectedProject);
+  const providerSkillsSupported =
+    selectedEnvironmentServerConfig?.environment.capabilities.providerSkills === true;
+  const selectedProviderStatus = selectedEnvironmentServerConfig?.providers.find(
+    (provider) => provider.instanceId === selectedModel?.instanceId,
   );
+  const providerSkillsQuery = useEnvironmentQuery(
+    providerSkillsSupported && providerSkillsCwd && selectedModel && selectedProject
+      ? serverEnvironment.providerSkills({
+          environmentId: selectedProject.environmentId,
+          input: { instanceId: selectedModel.instanceId, cwd: providerSkillsCwd },
+          ...(selectedProviderStatus ? { cacheKey: selectedProviderStatus.checkedAt } : {}),
+        })
+      : null,
+  );
+  const selectedProviderSkills = providerSkillsSupported
+    ? (providerSkillsQuery.data?.skills ?? [])
+    : (selectedProviderStatus?.skills ?? []);
   const setSelectedModelKey = useCallback(
     // Options ride along in the same write: a follow-up setSelectedModelOptions
     // call would rebuild the selection from the stale pre-switch model.

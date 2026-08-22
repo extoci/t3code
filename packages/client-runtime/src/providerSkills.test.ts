@@ -2,8 +2,26 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   formatProviderSkillDisplayName,
+  resolveActiveProjectCwd,
   resolveProviderSkillSourceKind,
 } from "./providerSkills.ts";
+
+describe("resolveActiveProjectCwd", () => {
+  it("prefers the thread worktree over the project root", () => {
+    expect(
+      resolveActiveProjectCwd(
+        { worktreePath: "/workspace/project-worktree" },
+        { workspaceRoot: "/workspace/project" },
+      ),
+    ).toBe("/workspace/project-worktree");
+  });
+
+  it("uses the project root when the thread has no worktree", () => {
+    expect(
+      resolveActiveProjectCwd({ worktreePath: null }, { workspaceRoot: "/workspace/project" }),
+    ).toBe("/workspace/project");
+  });
+});
 
 describe("formatProviderSkillDisplayName", () => {
   it("prefers the provider display name", () => {

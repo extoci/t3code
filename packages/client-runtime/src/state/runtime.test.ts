@@ -161,6 +161,18 @@ describe("environmentRpcKey", () => {
       }),
     ).not.toBe(environmentRpcKey(originalTarget));
   });
+
+  it("invalidates query state when its cache key changes", () => {
+    const target = {
+      environmentId: EnvironmentId.make("environment-1"),
+      input: { instanceId: "codex", cwd: "/repo" },
+    };
+
+    expect(environmentRpcKey({ ...target, cacheKey: "first-check" })).not.toBe(
+      environmentRpcKey({ ...target, cacheKey: "second-check" }),
+    );
+    expect(environmentRpcKey(target)).toBe(environmentRpcKey({ ...target }));
+  });
 });
 
 describe("Atom.fn mutation semantics", () => {

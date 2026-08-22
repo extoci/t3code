@@ -27,6 +27,7 @@ import {
   type EnvironmentConnectionPresentation,
 } from "@t3tools/client-runtime/connection";
 import { wasBootstrapThreadDeleted } from "@t3tools/client-runtime/errors";
+import { resolveActiveProjectCwd } from "@t3tools/client-runtime/providerSkills";
 import {
   changeRequestAutoSettles,
   effectiveSettled,
@@ -2069,6 +2070,7 @@ function ChatViewContent(props: ChatViewProps) {
     : (primaryEnvironment?.serverConfig ?? null);
   const pullRequestsCapabilityKnown = serverConfig !== null;
   const supportsPullRequests = serverConfig?.environment.capabilities.pullRequests === true;
+  const supportsProviderSkills = serverConfig?.environment.capabilities.providerSkills === true;
   const versionMismatch = resolveServerConfigVersionMismatch(serverConfig);
   const versionMismatchDismissKey =
     versionMismatch && activeThread
@@ -2687,6 +2689,7 @@ function ChatViewContent(props: ChatViewProps) {
         worktreePath: activeThread?.worktreePath ?? null,
       })
     : null;
+  const providerSkillsCwd = resolveActiveProjectCwd(activeThread, activeProject);
   const gitStatusCwd = activeThread?.worktreePath ?? gitCwd;
   const gitStatusQuery = useEnvironmentQuery(
     gitStatusCwd === null
@@ -2720,6 +2723,18 @@ function ChatViewContent(props: ChatViewProps) {
     const defaultInstanceId = defaultInstanceIdForDriver(selectedProvider);
     return providerStatuses.find((status) => status.instanceId === defaultInstanceId) ?? null;
   }, [activeProviderInstanceId, providerStatuses, selectedProvider]);
+  const activeProviderSkillsQuery = useEnvironmentQuery(
+    supportsProviderSkills && providerSkillsCwd && activeProviderStatus
+      ? serverEnvironment.providerSkills({
+          environmentId,
+          input: { instanceId: activeProviderStatus.instanceId, cwd: providerSkillsCwd },
+          cacheKey: activeProviderStatus.checkedAt,
+        })
+      : null,
+  );
+  const activeProviderSkills = supportsProviderSkills
+    ? (activeProviderSkillsQuery.data?.skills ?? EMPTY_PROVIDER_SKILLS)
+    : (activeProviderStatus?.skills ?? EMPTY_PROVIDER_SKILLS);
   const providerStatusBannerKey = getProviderStatusBannerKey(activeProviderStatus);
   const [dismissedProviderStatusBannerKey, setDismissedProviderStatusBannerKey] = useState<
     string | null
@@ -6527,7 +6542,7 @@ function ChatViewContent(props: ChatViewProps) {
                 resolvedTheme={resolvedTheme}
                 timestampFormat={timestampFormat}
                 workspaceRoot={activeWorkspaceRoot}
-                skills={activeProviderStatus?.skills ?? EMPTY_PROVIDER_SKILLS}
+                skills={activeProviderSkills}
                 anchorMessageId={timelineAnchorMessageId}
                 onAnchorReady={onTimelineAnchorReady}
                 contentInsetEndAdjustment={composerOverlayHeight}
@@ -6654,6 +6669,8 @@ function ChatViewContent(props: ChatViewProps) {
                             interactionMode={interactionMode}
                             lockedProvider={lockedProvider}
                             providerStatuses={providerStatuses as ServerProvider[]}
+                            providerSkillsSupported={supportsProviderSkills}
+                            providerSkillsCwd={providerSkillsCwd}
                             activeProjectDefaultModelSelection={
                               activeProject?.defaultModelSelection
                             }

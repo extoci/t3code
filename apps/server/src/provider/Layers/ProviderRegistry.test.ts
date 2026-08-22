@@ -4,7 +4,9 @@ import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Fiber from "effect/Fiber";
+import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
+import * as Path from "effect/Path";
 import * as PubSub from "effect/PubSub";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
@@ -49,6 +51,7 @@ import type { ProviderInstance } from "../ProviderDriver.ts";
 import * as ProviderInstanceRegistry from "../Services/ProviderInstanceRegistry.ts";
 import * as ProviderRegistry from "../Services/ProviderRegistry.ts";
 import { makeManualOnlyProviderMaintenanceCapabilities } from "../providerMaintenance.ts";
+import { emptyProviderSkillCatalog } from "../ProviderSkillCatalog.ts";
 const decodeServerSettings = Schema.decodeSync(ServerSettings);
 const encodeServerSettings = Schema.encodeSync(ServerSettings);
 const encodedDefaultServerSettings = encodeServerSettings(DEFAULT_SERVER_SETTINGS);
@@ -856,6 +859,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsModule.layerTest(), Te
               ),
               streamChanges: Stream.empty,
             },
+            skillCatalog: emptyProviderSkillCatalog,
             adapter: {} as ProviderInstance["adapter"],
             textGeneration: {} as ProviderInstance["textGeneration"],
           } satisfies ProviderInstance;
@@ -887,6 +891,119 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsModule.layerTest(), Te
             const registry = yield* ProviderRegistry.ProviderRegistry;
             assert.deepStrictEqual(yield* registry.getProviders, [initialProvider]);
             assert.strictEqual(yield* Ref.get(refreshCalls), 0);
+          }).pipe(Effect.provide(runtimeServices));
+        }),
+      );
+
+      it.effect("routes skill discovery to the instance with a normalized directory", () =>
+        Effect.gen(function* () {
+          const fileSystem = yield* FileSystem.FileSystem;
+          const path = yield* Path.Path;
+          const workspace = yield* fileSystem.makeTempDirectoryScoped({
+            prefix: "t3-provider-skills-",
+          });
+          const codexDriver = ProviderDriverKind.make("codex");
+          const codexInstanceId = ProviderInstanceId.make("codex_work");
+          const initialProvider = {
+            instanceId: codexInstanceId,
+            driver: codexDriver,
+            status: "ready",
+            enabled: true,
+            installed: true,
+            auth: { status: "authenticated" },
+            checkedAt: "2026-08-22T00:00:00.000Z",
+            version: "1.0.0",
+            models: [],
+            slashCommands: [],
+            skills: [],
+          } as const satisfies ServerProvider;
+          let discoveredCwd: string | null = null;
+          const instance = {
+            instanceId: codexInstanceId,
+            driverKind: codexDriver,
+            continuationIdentity: {
+              driverKind: codexDriver,
+              continuationKey: "codex:instance:codex_work",
+            },
+            displayName: "Work",
+            enabled: true,
+            snapshot: {
+              maintenanceCapabilities: makeManualOnlyProviderMaintenanceCapabilities({
+                provider: codexDriver,
+                packageName: null,
+              }),
+              getSnapshot: Effect.succeed(initialProvider),
+              refresh: Effect.succeed(initialProvider),
+              streamChanges: Stream.empty,
+            },
+            skillCatalog: {
+              list: (cwd: string) =>
+                Effect.sync(() => {
+                  discoveredCwd = cwd;
+                  return {
+                    skills: [
+                      {
+                        name: "test-t3-mobile",
+                        path: path.join(cwd, ".agents", "skills", "test-t3-mobile", "SKILL.md"),
+                        enabled: true,
+                      },
+                    ],
+                    stale: false,
+                  };
+                }),
+            },
+            adapter: {} as ProviderInstance["adapter"],
+            textGeneration: {} as ProviderInstance["textGeneration"],
+          } satisfies ProviderInstance;
+          const instanceRegistryLayer = Layer.succeed(
+            ProviderInstanceRegistry.ProviderInstanceRegistry,
+            {
+              getInstance: (instanceId) =>
+                Effect.succeed(instanceId === codexInstanceId ? instance : undefined),
+              listInstances: Effect.succeed([instance]),
+              listUnavailable: Effect.succeed([]),
+              streamChanges: Stream.empty,
+              subscribeChanges: Effect.flatMap(PubSub.unbounded<void>(), PubSub.subscribe),
+            },
+          );
+          const scope = yield* Scope.make();
+          yield* Effect.addFinalizer(() => Scope.close(scope, Exit.void));
+          const runtimeServices = yield* Layer.build(
+            ProviderRegistryLive.pipe(
+              Layer.provideMerge(instanceRegistryLayer),
+              Layer.provideMerge(
+                ServerConfig.layerTest(process.cwd(), {
+                  prefix: "t3-provider-registry-skills-",
+                }),
+              ),
+              Layer.provideMerge(NodeServices.layer),
+            ),
+          ).pipe(Scope.provide(scope));
+
+          yield* Effect.gen(function* () {
+            const registry = yield* ProviderRegistry.ProviderRegistry;
+            const result = yield* registry.listSkills({
+              instanceId: codexInstanceId,
+              cwd: path.join(workspace, "child", ".."),
+            });
+            assert.strictEqual(discoveredCwd, workspace);
+            assert.deepStrictEqual(
+              result.skills.map((skill) => skill.name),
+              ["test-t3-mobile"],
+            );
+
+            const relativeError = yield* Effect.flip(
+              registry.listSkills({ instanceId: codexInstanceId, cwd: "relative/project" }),
+            );
+            assert.strictEqual(relativeError.reason, "invalidDirectory");
+
+            const missingInstanceError = yield* Effect.flip(
+              registry.listSkills({
+                instanceId: ProviderInstanceId.make("missing"),
+                cwd: workspace,
+              }),
+            );
+            assert.strictEqual(missingInstanceError.reason, "instanceNotFound");
           }).pipe(Effect.provide(runtimeServices));
         }),
       );
@@ -945,6 +1062,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsModule.layerTest(), Te
               refresh: Effect.succeed(refreshedProvider),
               streamChanges: Stream.fromPubSub(changes),
             },
+            skillCatalog: emptyProviderSkillCatalog,
             adapter: {} as ProviderInstance["adapter"],
             textGeneration: {} as ProviderInstance["textGeneration"],
           } satisfies ProviderInstance;
@@ -1074,6 +1192,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsModule.layerTest(), Te
                 refresh: Effect.succeed(authoritativeProvider),
                 streamChanges: Stream.fromPubSub(changes),
               },
+              skillCatalog: emptyProviderSkillCatalog,
               adapter: {} as ProviderInstance["adapter"],
               textGeneration: {} as ProviderInstance["textGeneration"],
             } satisfies ProviderInstance;
@@ -1181,6 +1300,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsModule.layerTest(), Te
               refresh: Effect.die(new Error("simulated refresh failure")),
               streamChanges: Stream.empty,
             },
+            skillCatalog: emptyProviderSkillCatalog,
             adapter: {} as ProviderInstance["adapter"],
             textGeneration: {} as ProviderInstance["textGeneration"],
           } satisfies ProviderInstance;
@@ -1274,6 +1394,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsModule.layerTest(), Te
               refresh: Effect.succeed(provider),
               streamChanges: Stream.empty,
             },
+            skillCatalog: emptyProviderSkillCatalog,
             adapter: {} as ProviderInstance["adapter"],
             textGeneration: {} as ProviderInstance["textGeneration"],
           });

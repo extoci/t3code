@@ -633,6 +633,7 @@ const buildAppUnderTest = (options?: {
           getProviders: Effect.succeed([]),
           refresh: () => Effect.succeed([]),
           refreshInstance: () => Effect.succeed([]),
+          listSkills: () => Effect.succeed({ skills: [], stale: false }),
           getProviderMaintenanceCapabilitiesForInstance: (_instanceId, provider) =>
             Effect.succeed(
               makeManualOnlyProviderMaintenanceCapabilities({ provider, packageName: null }),
@@ -4023,6 +4024,54 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
       assert.equal(response.auth.policy, "desktop-managed-local");
       assert.equal(response.shellResumeCompletionMarker, true);
       assert.equal(response.threadResumeCompletionMarker, true);
+    }).pipe(Effect.provide(NodeHttpServer.layerTest)),
+  );
+
+  it.effect("lists provider skills over an authenticated websocket", () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const workspace = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-ws-skills-" });
+      const instanceId = ProviderInstanceId.make("codex_work");
+      let observedCwd: string | null = null;
+      yield* buildAppUnderTest({
+        layers: {
+          providerRegistry: {
+            listSkills: (input) =>
+              Effect.sync(() => {
+                observedCwd = input.cwd;
+                return {
+                  skills: [
+                    {
+                      name: "test-t3-mobile",
+                      path: `${input.cwd}/.agents/skills/test-t3-mobile/SKILL.md`,
+                      enabled: true,
+                    },
+                  ],
+                  stale: false,
+                };
+              }),
+          },
+        },
+      });
+      const { cookie } = yield* bootstrapBrowserSession();
+      assert.isDefined(cookie);
+      const wsUrl = appendSessionCookieToWsUrl(
+        yield* getWsServerUrl("/ws", { authenticated: false }),
+        cookie?.split(";")[0] ?? "",
+      );
+
+      const response = yield* Effect.scoped(
+        withWsRpcClient(wsUrl, (client) =>
+          client[WS_METHODS.providerListSkills]({ instanceId, cwd: workspace }),
+        ),
+      );
+
+      assert.strictEqual(observedCwd, workspace);
+      assert.deepStrictEqual(
+        response.skills.map((skill) => skill.name),
+        ["test-t3-mobile"],
+      );
+      assert.strictEqual(response.stale, false);
     }).pipe(Effect.provide(NodeHttpServer.layerTest)),
   );
 

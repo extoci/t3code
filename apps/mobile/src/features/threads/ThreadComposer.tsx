@@ -6,6 +6,7 @@ import type {
   ProviderInteractionMode,
   RuntimeMode,
   ServerConfig as T3ServerConfig,
+  ServerProviderSkill,
 } from "@t3tools/contracts";
 import {
   detectComposerTrigger,
@@ -106,6 +107,7 @@ export interface ThreadComposerProps {
   readonly threadSyncPhase?: "loading" | "syncing" | null;
   readonly selectedThread: OrchestrationThreadShell;
   readonly serverConfig: T3ServerConfig | null;
+  readonly providerSkills: ReadonlyArray<ServerProviderSkill>;
   readonly queueCount: number;
   readonly environmentId: EnvironmentId;
   readonly projectCwd: string | null;
@@ -431,7 +433,7 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
         });
       }
 
-      const skillItems = (selectedProviderStatus?.skills ?? [])
+      const skillItems = props.providerSkills
         .filter((skill) => matchesSlashSkillQuery(skill, q))
         .map((skill) => ({
           id: `skill:${skill.name}`,
@@ -445,7 +447,7 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
     }
 
     if (composerTrigger.kind === "skill") {
-      const enabledSkills = (selectedProviderStatus?.skills ?? []).filter((s) => s.enabled);
+      const enabledSkills = props.providerSkills.filter((skill) => skill.enabled);
       const normalizedQuery = normalizeSearchQuery(composerTrigger.query, {
         trimLeadingPattern: /^\$+/,
       });
@@ -542,7 +544,7 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
     }
 
     return [];
-  }, [composerTrigger, pathSearch.entries, selectedProviderStatus]);
+  }, [composerTrigger, pathSearch.entries, props.providerSkills, selectedProviderStatus]);
 
   // ── Handle command selection ──────────────────────────────
   const { onChangeDraftMessage, onUpdateInteractionMode, draftMessage, onSendMessage } = props;
@@ -794,7 +796,7 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
               ref={inputRef}
               multiline
               value={props.draftMessage}
-              skills={selectedProviderStatus?.skills ?? []}
+              skills={props.providerSkills}
               selection={composerSelection}
               onChangeText={props.onChangeDraftMessage}
               onSelectionChange={handleSelectionChange}

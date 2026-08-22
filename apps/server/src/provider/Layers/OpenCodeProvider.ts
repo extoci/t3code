@@ -256,7 +256,9 @@ function trimOptional(value: string | null | undefined): string | undefined {
   return trimmed && trimmed.length > 0 ? trimmed : undefined;
 }
 
-function flattenOpenCodeSkills(input: OpenCodeInventory): ReadonlyArray<ServerProviderSkill> {
+export function flattenOpenCodeSkills(
+  input: OpenCodeInventory,
+): ReadonlyArray<ServerProviderSkill> {
   const skills: ServerProviderSkill[] = [];
   for (const skill of input.skills ?? []) {
     const name = trimOptional(skill.name);

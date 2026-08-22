@@ -1,4 +1,5 @@
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
+import { resolveActiveProjectCwd } from "@t3tools/client-runtime/providerSkills";
 import type { EnvironmentId, ScopedThreadRef } from "@t3tools/contracts";
 
 import { useProjects } from "~/state/entities";
@@ -28,7 +29,7 @@ export function useActiveProjectTarget(): ActiveProjectTarget | null {
           candidate.environmentId === thread.environmentId && candidate.id === thread.projectId,
       )
     : null;
-  const cwd = thread?.worktreePath ?? project?.workspaceRoot;
+  const cwd = resolveActiveProjectCwd(thread, project);
 
   if (!thread || !threadId || !project || !cwd) return null;
 

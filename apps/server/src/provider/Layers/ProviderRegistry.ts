@@ -24,7 +24,9 @@
  */
 import {
   defaultInstanceIdForDriver,
+  ProviderSkillDiscoveryError,
   ProviderDriverKind,
+  type ProviderListSkillsInput,
   type ProviderInstanceId,
   type ServerProvider,
   type ServerProviderUpdateState,
@@ -34,6 +36,7 @@ import * as Effect from "effect/Effect";
 import * as Equal from "effect/Equal";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as PubSub from "effect/PubSub";
 import * as Ref from "effect/Ref";
@@ -704,12 +707,54 @@ export const ProviderRegistryLive = Layer.effect(
       return yield* Ref.get(providersRef);
     });
 
+    const listSkills = Effect.fn("ProviderRegistry.listSkills")(function* (
+      input: ProviderListSkillsInput,
+    ) {
+      const instance = yield* instanceRegistry.getInstance(input.instanceId);
+      if (!instance) {
+        const unavailable = yield* instanceRegistry.listUnavailable;
+        const reason = unavailable.some((provider) => provider.instanceId === input.instanceId)
+          ? "instanceUnavailable"
+          : "instanceNotFound";
+        return yield* new ProviderSkillDiscoveryError({
+          reason,
+          message:
+            reason === "instanceUnavailable"
+              ? `Provider instance ${input.instanceId} is unavailable.`
+              : `Provider instance ${input.instanceId} was not found.`,
+        });
+      }
+      if (!instance.enabled) {
+        return yield* new ProviderSkillDiscoveryError({
+          reason: "instanceUnavailable",
+          message: `Provider instance ${input.instanceId} is disabled.`,
+        });
+      }
+      if (!path.isAbsolute(input.cwd)) {
+        return yield* new ProviderSkillDiscoveryError({
+          reason: "invalidDirectory",
+          message: "The provider skill directory must be an absolute path.",
+        });
+      }
+
+      const cwd = path.resolve(input.cwd);
+      const directoryInfo = yield* Effect.option(fileSystem.stat(cwd));
+      if (Option.isNone(directoryInfo) || directoryInfo.value.type !== "Directory") {
+        return yield* new ProviderSkillDiscoveryError({
+          reason: "invalidDirectory",
+          message: `The provider skill directory does not exist: ${cwd}`,
+        });
+      }
+      return yield* instance.skillCatalog.list(cwd);
+    });
+
     return {
       getProviders: Ref.get(providersRef),
       refresh: (provider?: ProviderDriverKind) =>
         refresh(provider).pipe(Effect.catchCause(recoverRefreshFailure)),
       refreshInstance: (instanceId: ProviderInstanceId) =>
         refreshInstance(instanceId).pipe(Effect.catchCause(recoverRefreshFailure)),
+      listSkills,
       getProviderMaintenanceCapabilitiesForInstance,
       setProviderMaintenanceActionState,
       get streamChanges() {

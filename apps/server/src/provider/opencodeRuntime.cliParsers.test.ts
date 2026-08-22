@@ -1,8 +1,11 @@
 import * as NodeAssert from "node:assert/strict";
 
-import { describe, it } from "vite-plus/test";
+import { describe, it } from "@effect/vitest";
+import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
 
 import {
+  decodeOpenCodeSkillsCliOutput,
   parseAgentListCliOutput,
   parseModelsCliOutput,
   parseSkillsCliOutput,
@@ -283,4 +286,12 @@ describe("parseSkillsCliOutput", () => {
   it("degrades malformed output to an empty skill list", () => {
     NodeAssert.deepEqual(parseSkillsCliOutput("not json"), []);
   });
+
+  it.effect("lets strict discovery reject malformed skill output", () =>
+    Effect.gen(function* () {
+      const result = yield* Effect.exit(decodeOpenCodeSkillsCliOutput("not json"));
+
+      NodeAssert.equal(Exit.isFailure(result), true);
+    }),
+  );
 });

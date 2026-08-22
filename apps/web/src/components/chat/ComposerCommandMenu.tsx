@@ -113,7 +113,7 @@ export const ComposerCommandMenu = memo(function ComposerCommandMenu(props: {
             <p className="text-secondary-label text-xs">
               {props.isLoading
                 ? props.triggerKind === "skill"
-                  ? "Searching workspace skills..."
+                  ? "Loading skills…"
                   : "Searching workspace files..."
                 : (props.emptyStateText ??
                   (props.triggerKind === "skill"

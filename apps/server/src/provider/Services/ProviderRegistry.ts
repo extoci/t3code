@@ -9,6 +9,9 @@
 import type {
   ProviderInstanceId,
   ProviderDriverKind,
+  ProviderListSkillsInput,
+  ProviderListSkillsResult,
+  ProviderSkillDiscoveryError,
   ServerProvider,
   ServerProviderUpdateState,
 } from "@t3tools/contracts";
@@ -47,6 +50,10 @@ export interface ProviderRegistryShape {
   readonly refreshInstance: (
     instanceId: ProviderInstanceId,
   ) => Effect.Effect<ReadonlyArray<ServerProvider>>;
+
+  readonly listSkills: (
+    input: ProviderListSkillsInput,
+  ) => Effect.Effect<ProviderListSkillsResult, ProviderSkillDiscoveryError>;
 
   /**
    * Resolve the maintenance capabilities owned by one live provider instance.
