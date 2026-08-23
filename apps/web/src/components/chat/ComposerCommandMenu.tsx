@@ -12,7 +12,6 @@ import {
 import {
   BlocksIcon,
   FolderIcon,
-  GitBranchIcon,
   PackageIcon,
   SettingsIcon,
   UserRoundIcon,
@@ -196,7 +195,7 @@ const ComposerCommandMenuItem = memo(function ComposerCommandMenuItem(props: {
 
 const SKILL_SOURCE_ICON_BY_KIND: Record<ProviderSkillSourceKind, LucideIcon> = {
   app: BlocksIcon,
-  repo: GitBranchIcon,
+  repo: FolderIcon,
   project: FolderIcon,
   personal: UserRoundIcon,
   system: SettingsIcon,

@@ -1111,9 +1111,13 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
             ] as const)
           : []),
       ] satisfies ReadonlyArray<Extract<ComposerCommandItem, { type: "slash-command" }>>;
+      const slashMenuSkills = getProviderSkillsForSlashMenu(
+        selectedProviderStatus?.skills ?? [],
+        settings.showSkillsInSlashMenu,
+      );
       const providerSlashCommandItems = getProviderSlashCommandsForSlashMenu(
         selectedProviderStatus?.slashCommands ?? [],
-        selectedProviderStatus?.skills ?? [],
+        slashMenuSkills,
       ).map((command) => ({
         id: `provider-slash-command:${selectedProvider}:${command.name}`,
         type: "provider-slash-command" as const,
@@ -1123,10 +1127,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         description: command.description ?? command.input?.hint ?? "Run provider command",
       }));
       const query = composerTrigger.query.trim().toLowerCase();
-      const skillItems = getProviderSkillsForSlashMenu(
-        selectedProviderStatus?.skills ?? [],
-        settings.showSkillsInSlashMenu,
-      ).map((skill) => ({
+      const skillItems = slashMenuSkills.map((skill) => ({
         id: `skill:${selectedProvider}:${skill.name}`,
         type: "skill" as const,
         provider: selectedProvider,

@@ -34,11 +34,9 @@ export function getProviderSkillsForSlashMenu(
 
 export function getProviderSlashCommandsForSlashMenu(
   slashCommands: ReadonlyArray<ServerProviderSlashCommand>,
-  skills: ReadonlyArray<ServerProviderSkill>,
+  visibleSkills: ReadonlyArray<ServerProviderSkill>,
 ): ServerProviderSlashCommand[] {
-  const skillNames = new Set(
-    skills.filter((skill) => skill.enabled).map((skill) => skill.name.trim().toLowerCase()),
-  );
+  const skillNames = new Set(visibleSkills.map((skill) => skill.name.trim().toLowerCase()));
   return slashCommands.filter((command) => !skillNames.has(command.name.trim().toLowerCase()));
 }
 
