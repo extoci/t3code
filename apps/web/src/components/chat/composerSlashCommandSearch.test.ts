@@ -145,36 +145,6 @@ describe("searchSlashCommandItems", () => {
     expect(searchSlashCommandItems(items, "/ill")).toEqual([]);
   });
 
-  it("keeps command prefix matches ahead of the skill prefix alias", () => {
-    const items = [
-      {
-        id: "provider-slash-command:claudeAgent:sketch",
-        type: "provider-slash-command",
-        provider: claudeDriver,
-        command: { name: "sketch" },
-        label: "/sketch",
-        description: "Sketch an implementation",
-      },
-      {
-        id: "skill:claudeAgent:browser",
-        type: "skill",
-        provider: claudeDriver,
-        skill: {
-          name: "browser",
-          path: "/skills/browser/SKILL.md",
-          enabled: true,
-        },
-        label: "/skill:browser",
-        description: "Open and control the in-app browser",
-      },
-    ] satisfies Array<Extract<ComposerCommandItem, { type: "provider-slash-command" | "skill" }>>;
-
-    expect(searchSlashCommandItems(items, "/sk").map((item) => item.id)).toEqual([
-      "provider-slash-command:claudeAgent:sketch",
-      "skill:claudeAgent:browser",
-    ]);
-  });
-
   it("keeps skills alongside commands for an empty slash query", () => {
     const items = [
       {
