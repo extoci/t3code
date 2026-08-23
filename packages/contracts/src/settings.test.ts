@@ -35,6 +35,15 @@ describe("ClientSettings word wrap", () => {
   });
 });
 
+describe("ClientSettings composer menus", () => {
+  it("keeps skills in the dollar menu unless the slash-menu option is enabled", () => {
+    expect(decodeClientSettings({}).showSkillsInSlashMenu).toBe(false);
+    expect(decodeClientSettingsPatch({ showSkillsInSlashMenu: true }).showSkillsInSlashMenu).toBe(
+      true,
+    );
+  });
+});
+
 describe("ClientSettings glass opacity", () => {
   it("defaults to a readable translucent surface", () => {
     expect(decodeClientSettings({}).glassOpacity).toBe(80);

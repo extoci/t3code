@@ -14,8 +14,10 @@ type SlashSearchItem = Extract<
 
 function scoreSlashCommandItem(item: SlashSearchItem, query: string): number | null {
   if (item.type === "skill") {
-    const skillQuery =
-      query === "skill" ? "" : query.startsWith("skill:") ? query.slice("skill:".length) : query;
+    if ("skill".startsWith(query)) {
+      return 0;
+    }
+    const skillQuery = query.startsWith("skill:") ? query.slice("skill:".length) : query;
     return skillQuery ? scoreProviderSkill(item.skill, skillQuery) : 0;
   }
 

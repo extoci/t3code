@@ -2,6 +2,8 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   formatProviderSkillDisplayName,
+  getProviderSlashCommandsForSlashMenu,
+  getProviderSkillsForSlashMenu,
   resolveProviderSkillSourceKind,
 } from "./providerSkills.ts";
 
@@ -21,6 +23,54 @@ describe("formatProviderSkillDisplayName", () => {
         name: "review-follow-up",
       }),
     ).toBe("Review Follow Up");
+  });
+});
+
+describe("getProviderSkillsForSlashMenu", () => {
+  const skills = [
+    { name: "browser", path: "/skills/browser/SKILL.md", enabled: true },
+    { name: "retired", path: "/skills/retired/SKILL.md", enabled: false },
+  ];
+
+  it("keeps skills out of the slash menu by default", () => {
+    expect(getProviderSkillsForSlashMenu(skills, false)).toEqual([]);
+  });
+
+  it("includes enabled skills after the user opts in", () => {
+    expect(getProviderSkillsForSlashMenu(skills, true).map((skill) => skill.name)).toEqual([
+      "browser",
+    ]);
+  });
+
+  it("keeps the skill alias when the provider also exposes it as a slash command", () => {
+    const askMatt = {
+      name: "ask-matt",
+      path: "/Users/matt/.agents/skills/ask-matt/SKILL.md",
+      enabled: true,
+    };
+    expect(getProviderSkillsForSlashMenu([askMatt], true).map((skill) => skill.name)).toEqual([
+      "ask-matt",
+    ]);
+  });
+});
+
+describe("getProviderSlashCommandsForSlashMenu", () => {
+  it("lets the skill alias win when a provider command has the same name", () => {
+    const commands = [
+      { name: "ask-matt", description: "Ask which skill fits your situation." },
+      { name: "compact", description: "Compact the conversation." },
+    ];
+    const skills = [
+      {
+        name: "ask-matt",
+        path: "/Users/matt/.agents/skills/ask-matt/SKILL.md",
+        enabled: true,
+      },
+    ];
+
+    expect(
+      getProviderSlashCommandsForSlashMenu(commands, skills).map((command) => command.name),
+    ).toEqual(["compact"]);
   });
 });
 
