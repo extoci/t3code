@@ -71,6 +71,7 @@ import {
   type SidebarThreadSortOrder,
 } from "@t3tools/contracts/settings";
 import { isDesktopLocalConnectionTarget } from "../connection/desktopLocal";
+import { shouldSkipConfirmation } from "../confirmDialog";
 import { useDesktopLocalBootstraps } from "../connection/useDesktopLocalBootstraps";
 import { isElectron } from "../env";
 import { useTerminalFocus } from "../hooks/useTerminalFocus";
@@ -654,12 +655,22 @@ export const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThr
     (event: React.MouseEvent<HTMLButtonElement>) => {
       event.preventDefault();
       event.stopPropagation();
+      if (event.shiftKey) {
+        void attemptArchiveThread(threadRef);
+        return;
+      }
       setConfirmingArchiveThreadKey(threadKey);
       requestAnimationFrame(() => {
         confirmArchiveButtonRefs.current.get(threadKey)?.focus();
       });
     },
-    [confirmArchiveButtonRefs, setConfirmingArchiveThreadKey, threadKey],
+    [
+      attemptArchiveThread,
+      confirmArchiveButtonRefs,
+      setConfirmingArchiveThreadKey,
+      threadKey,
+      threadRef,
+    ],
   );
   const handleArchiveImmediateClick = useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -1493,6 +1504,7 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
             actionProps: {
               children: "Delete anyway",
               onClick: () => {
+                const skipConfirmation = shouldSkipConfirmation();
                 void (async () => {
                   toastManager.close(warningToastId);
                   await new Promise<void>((resolve) => {
@@ -1506,30 +1518,32 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
                       thread.environmentId === memberProjectRef.environmentId &&
                       thread.projectId === memberProjectRef.projectId,
                   );
-                  const confirmed = await api.dialogs.confirm(
-                    latestProjectThreads.length > 0
-                      ? [
-                          `Remove project "${member.title}" and delete its ${latestProjectThreads.length} thread${
-                            latestProjectThreads.length === 1 ? "" : "s"
-                          }?`,
-                          `Path: ${member.workspaceRoot}`,
-                          ...(member.environmentLabel
-                            ? [`Environment: ${member.environmentLabel}`]
-                            : []),
-                          "This permanently clears conversation history for those threads.",
-                          "This removes only this project entry.",
-                          "This action cannot be undone.",
-                        ].join("\n")
-                      : [
-                          `Remove project "${member.title}"?`,
-                          `Path: ${member.workspaceRoot}`,
-                          ...(member.environmentLabel
-                            ? [`Environment: ${member.environmentLabel}`]
-                            : []),
-                          "This removes only this project entry.",
-                        ].join("\n"),
-                    { variant: "destructive" },
-                  );
+                  const confirmed =
+                    skipConfirmation ||
+                    (await api.dialogs.confirm(
+                      latestProjectThreads.length > 0
+                        ? [
+                            `Remove project "${member.title}" and delete its ${latestProjectThreads.length} thread${
+                              latestProjectThreads.length === 1 ? "" : "s"
+                            }?`,
+                            `Path: ${member.workspaceRoot}`,
+                            ...(member.environmentLabel
+                              ? [`Environment: ${member.environmentLabel}`]
+                              : []),
+                            "This permanently clears conversation history for those threads.",
+                            "This removes only this project entry.",
+                            "This action cannot be undone.",
+                          ].join("\n")
+                        : [
+                            `Remove project "${member.title}"?`,
+                            `Path: ${member.workspaceRoot}`,
+                            ...(member.environmentLabel
+                              ? [`Environment: ${member.environmentLabel}`]
+                              : []),
+                            "This removes only this project entry.",
+                          ].join("\n"),
+                      { variant: "destructive" },
+                    ));
                   if (!confirmed) {
                     return;
                   }

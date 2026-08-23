@@ -100,6 +100,7 @@ import {
 } from "~/environments/primary";
 import { isDesktopLocalConnectionTarget } from "~/connection/desktopLocal";
 import { useUiStateStore } from "~/uiStateStore";
+import { shouldSkipConfirmation } from "~/confirmDialog";
 import {
   resolveServerConfigVersionMismatch,
   resolveServerSelfUpdateCapability,
@@ -2069,9 +2070,16 @@ export function ConnectionsSettings() {
     }
   }, [desktopBridge, desktopServerExposureState?.tailscaleServePort]);
 
-  const handleStartTailscaleServeDisable = useCallback((_endpoint: AdvertisedEndpoint) => {
-    setDisableTailscaleServeDialogOpen(true);
-  }, []);
+  const handleStartTailscaleServeDisable = useCallback(
+    (_endpoint: AdvertisedEndpoint) => {
+      if (shouldSkipConfirmation()) {
+        void handleConfirmTailscaleServeDisable();
+        return;
+      }
+      setDisableTailscaleServeDialogOpen(true);
+    },
+    [handleConfirmTailscaleServeDisable],
+  );
 
   const handleRevokeDesktopPairingLink = useCallback(async (id: string) => {
     setRevokingDesktopPairingLinkId(id);
@@ -2569,6 +2577,10 @@ export function ConnectionsSettings() {
       checked={desktopServerExposureState?.mode === "network-accessible"}
       disabled={!desktopServerExposureState || isUpdatingDesktopServerExposure}
       onCheckedChange={(checked) => {
+        if (shouldSkipConfirmation()) {
+          void handleDesktopServerExposureChange(checked);
+          return;
+        }
         setPendingDesktopServerExposureMode(checked ? "network-accessible" : "local-only");
         setIsDesktopServerExposureDialogOpen(true);
       }}
@@ -2648,6 +2660,28 @@ export function ConnectionsSettings() {
     );
   }, [environments]);
 
+  const applyConfirmedWslChange = useCallback(
+    (change: Exclude<PendingWslChange, { readonly kind: "enable" }>) => {
+      if (!desktopBridge) return;
+      if (change.kind === "disable") {
+        void applyWslSettingChange(async () => {
+          const next = await desktopBridge.setWslBackendEnabled(false);
+          if (change.wasWslOnly) {
+            return await desktopBridge.setWslOnly(false);
+          }
+          return next;
+        });
+        return;
+      }
+      if (change.kind === "distro") {
+        void applyWslSettingChange(() => desktopBridge.setWslDistro(change.nextDistro));
+        return;
+      }
+      void applyWslSettingChange(() => desktopBridge.setWslOnly(change.nextValue));
+    },
+    [applyWslSettingChange, desktopBridge],
+  );
+
   // Single picker for "WSL backend off" vs "running on distro X". The
   // dropdown maps "Off" to disable and any distro entry to enable +
   // run on that distro. Splitting these into a separate switch and
@@ -2668,7 +2702,12 @@ export function ConnectionsSettings() {
         // on (turning the only running backend off needs to switch
         // back to Windows and restart — always consequential).
         if (hasWslRegistrationToLose || wasWslOnly) {
-          setPendingWslChange({ kind: "disable", wasWslOnly });
+          const change = { kind: "disable", wasWslOnly } as const;
+          if (shouldSkipConfirmation()) {
+            applyConfirmedWslChange(change);
+          } else {
+            setPendingWslChange(change);
+          }
           return;
         }
         void applyWslSettingChange(() => desktopBridge.setWslBackendEnabled(false));
@@ -2693,12 +2732,23 @@ export function ConnectionsSettings() {
       // the app (the IPC handler does this) rather than swapping a secondary,
       // and the user should see that coming.
       if (hasWslRegistrationToLose || desktopWslState.wslOnly) {
-        setPendingWslChange({ kind: "distro", nextDistro });
+        const change = { kind: "distro", nextDistro } as const;
+        if (shouldSkipConfirmation()) {
+          applyConfirmedWslChange(change);
+        } else {
+          setPendingWslChange(change);
+        }
         return;
       }
       void applyWslSettingChange(() => desktopBridge.setWslDistro(nextDistro));
     },
-    [applyWslSettingChange, desktopBridge, desktopWslState, hasWslRegistrationToLose],
+    [
+      applyConfirmedWslChange,
+      applyWslSettingChange,
+      desktopBridge,
+      desktopWslState,
+      hasWslRegistrationToLose,
+    ],
   );
 
   // Dispatched from the enable modal's two action buttons.
@@ -2729,9 +2779,14 @@ export function ConnectionsSettings() {
       // anything itself; the renderer warns the user to expect a
       // restart and (in a follow-up) can trigger it automatically.
       // Always prompt — even enabling is consequential here.
-      setPendingWslChange({ kind: "wsl-only", nextValue: enabled });
+      const change = { kind: "wsl-only", nextValue: enabled } as const;
+      if (shouldSkipConfirmation()) {
+        applyConfirmedWslChange(change);
+        return;
+      }
+      setPendingWslChange(change);
     },
-    [desktopBridge, desktopWslState],
+    [applyConfirmedWslChange, desktopBridge, desktopWslState],
   );
 
   const handleConfirmWslChange = useCallback(() => {
@@ -2741,23 +2796,8 @@ export function ConnectionsSettings() {
     // this single Confirm path.
     if (change.kind === "enable") return;
     setPendingWslChange(null);
-    if (change.kind === "disable") {
-      void applyWslSettingChange(async () => {
-        const next = await desktopBridge.setWslBackendEnabled(false);
-        if (change.wasWslOnly) {
-          // Clearing wsl-only relaunches onto the Windows backend.
-          return await desktopBridge.setWslOnly(false);
-        }
-        return next;
-      });
-      return;
-    }
-    if (change.kind === "distro") {
-      void applyWslSettingChange(() => desktopBridge.setWslDistro(change.nextDistro));
-      return;
-    }
-    void applyWslSettingChange(() => desktopBridge.setWslOnly(change.nextValue));
-  }, [applyWslSettingChange, desktopBridge, pendingWslChange]);
+    applyConfirmedWslChange(change);
+  }, [applyConfirmedWslChange, desktopBridge, pendingWslChange]);
 
   const renderWslRow = () => {
     if (!desktopWslState) {

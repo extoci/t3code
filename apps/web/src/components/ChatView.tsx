@@ -383,6 +383,7 @@ import {
   serverUpdateGuidance,
 } from "../versionSkew";
 import { useAssetUrls } from "../assets/assetUrls";
+import { shouldSkipConfirmation } from "../confirmDialog";
 
 const IMAGE_ONLY_BOOTSTRAP_PROMPT =
   "[User attached one or more images without additional text. Respond using the conversation context and the attached image(s).]";
@@ -4727,6 +4728,10 @@ function ChatViewContent(props: ChatViewProps) {
   ]);
   const handleRestoreThreadBranch = useCallback(() => {
     if (gitStatusQuery.data?.hasWorkingTreeChanges) {
+      if (shouldSkipConfirmation()) {
+        void handleSwitchCheckoutToThread();
+        return;
+      }
       setBranchRestoreConfirmOpen(true);
       return;
     }

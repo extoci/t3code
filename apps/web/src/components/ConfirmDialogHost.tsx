@@ -1,6 +1,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 
 import {
+  captureConfirmationTrigger,
   completeConfirmDialogClose,
   readConfirmDialogState,
   registerConfirmDialogHost,
@@ -59,6 +60,17 @@ export function ConfirmDialogHost() {
   );
 
   useEffect(() => registerConfirmDialogHost(), []);
+  useEffect(() => {
+    const captureTrigger = (event: MouseEvent | PointerEvent) => captureConfirmationTrigger(event);
+    document.addEventListener("pointerdown", captureTrigger, true);
+    document.addEventListener("pointerup", captureTrigger, true);
+    document.addEventListener("click", captureTrigger, true);
+    return () => {
+      document.removeEventListener("pointerdown", captureTrigger, true);
+      document.removeEventListener("pointerup", captureTrigger, true);
+      document.removeEventListener("click", captureTrigger, true);
+    };
+  }, []);
 
   const copy = resolveConfirmDialogCopy(state.status === "idle" ? "" : state.message);
   const confirmVariant = state.status === "idle" ? "default" : state.variant;

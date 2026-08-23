@@ -13,6 +13,7 @@ import {
   useManagedRelayEnvironments,
 } from "../../cloud/managedRelayState";
 import { useAtomCommand } from "../../state/use-atom-command";
+import { shouldSkipConfirmation } from "../../confirmDialog";
 import { Button } from "../ui/button";
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "../ui/collapsible";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "../ui/empty";
@@ -232,9 +233,13 @@ export function T3ConnectUserProfilePage() {
                 environment={environment}
                 confirmationOpen={confirmingEnvironmentId === environment.environmentId}
                 mutationPending={deregisteringEnvironmentId !== null}
-                onConfirmationChange={(open) =>
-                  setConfirmingEnvironmentId(open ? environment.environmentId : null)
-                }
+                onConfirmationChange={(open) => {
+                  if (open && shouldSkipConfirmation()) {
+                    void handleDeregister(environment);
+                    return;
+                  }
+                  setConfirmingEnvironmentId(open ? environment.environmentId : null);
+                }}
                 onDeregister={(selected) => void handleDeregister(selected)}
               />
             ))}

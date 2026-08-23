@@ -92,6 +92,7 @@ import { type DraftId, useComposerDraftStore } from "~/composerDraftStore";
 import { readLocalApi } from "~/localApi";
 import { getSourceControlPresentation } from "~/sourceControlPresentation";
 import { openPullRequestLink } from "~/lib/openPullRequestLink";
+import { shouldSkipConfirmation } from "~/confirmDialog";
 
 interface GitActionsControlProps {
   gitCwd: string | null;
@@ -1281,6 +1282,7 @@ export default function GitActionsControl({
         (action === "commit" || !!actionStatus?.hasWorkingTreeChanges || featureBranch);
       if (
         !skipDefaultBranchPrompt &&
+        !shouldSkipConfirmation() &&
         requiresDefaultBranchConfirmation(action, actionIsDefaultBranch) &&
         actionBranch
       ) {

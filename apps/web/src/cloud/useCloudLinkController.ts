@@ -17,6 +17,7 @@ import {
 } from "./linkEnvironmentAtoms";
 import { usePrimaryCloudLinkState } from "./primaryCloudLinkState";
 import { resolveRelayClerkTokenOptions } from "./publicConfig";
+import { shouldSkipConfirmation } from "../confirmDialog";
 
 export interface CloudLinkDesiredState {
   readonly managedTunnel: boolean;
@@ -78,6 +79,7 @@ export function useCloudLinkController() {
   const linked = primaryCloudLinkState.data?.linked ?? false;
 
   const reconcileCloudState = async (desired: CloudLinkDesiredState): Promise<boolean> => {
+    const skipRelayClientInstallConfirmation = shouldSkipConfirmation();
     setOperationError(null);
     const target = primaryCloudLinkState.target;
     if (!target) {
@@ -120,6 +122,7 @@ export function useCloudLinkController() {
           target,
           clerkToken,
           mode: desired.managedTunnel ? "managed" : "publish_only",
+          skipRelayClientInstallConfirmation,
         });
         if (linkResult._tag === "Failure") {
           if (!isAtomCommandInterrupted(linkResult)) {

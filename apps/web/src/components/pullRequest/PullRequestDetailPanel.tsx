@@ -64,6 +64,7 @@ import { pullRequestEnvironment } from "~/state/pullRequests";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { vcsEnvironment } from "~/state/vcs";
 import { formatRelativeTimeLabel } from "~/timestampFormat";
+import { shouldSkipConfirmation } from "~/confirmDialog";
 
 import {
   AlertDialog,
@@ -1026,6 +1027,15 @@ export function PullRequestDetailPanel({
     ? mergeMethod
     : (allowedMergeMethods[0] ?? "merge");
   const selectedMergeMethodLabel = MERGE_METHOD_LABELS[selectedMergeMethod];
+  const requestConfirmedAction = (action: "merge" | "close" | "enable-auto-merge") => {
+    if (!shouldSkipConfirmation()) {
+      setConfirmation({ open: true, action });
+      return;
+    }
+    if (action === "merge") void perform("merge", selectedMergeMethod);
+    if (action === "enable-auto-merge") void perform("enable-auto-merge", selectedMergeMethod);
+    if (action === "close") void perform("close");
+  };
   const conflicting = detail?.state === "open" && detail.mergeability === "conflicting";
   // Only an outright yes arms it. A host that reports nothing has not said the merge is already
   // spoken for, and an off switch for something that may not be on says the wrong thing twice.
@@ -1303,7 +1313,7 @@ export function PullRequestDetailPanel({
                 <Button
                   size="xs"
                   disabled={actionPending}
-                  onClick={() => setConfirmation({ open: true, action: "merge" })}
+                  onClick={() => requestConfirmedAction("merge")}
                 >
                   {pendingAction === "merge" ? "Merging..." : selectedMergeMethodLabel}
                 </Button>
@@ -1397,9 +1407,7 @@ export function PullRequestDetailPanel({
                         allowedMergeMethods.length > 0 ? (
                         <MenuItem
                           disabled={actionPending}
-                          onClick={() =>
-                            setConfirmation({ open: true, action: "enable-auto-merge" })
-                          }
+                          onClick={() => requestConfirmedAction("enable-auto-merge")}
                         >
                           <GitMergeIcon className="size-3.5" />
                           Enable auto-merge
@@ -1458,7 +1466,7 @@ export function PullRequestDetailPanel({
                       <MenuItem
                         variant="destructive"
                         disabled={actionPending}
-                        onClick={() => setConfirmation({ open: true, action: "close" })}
+                        onClick={() => requestConfirmedAction("close")}
                       >
                         <GitPullRequestClosedIcon className="size-3.5" />
                         Close pull request

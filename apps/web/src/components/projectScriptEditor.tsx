@@ -24,6 +24,7 @@ import {
 } from "~/lib/projectScriptKeybindings";
 import { keybindingFromKeyboardEvent } from "~/components/settings/KeybindingsSettings.logic";
 import { commandForProjectScript, nextProjectScriptId } from "~/projectScripts";
+import { shouldSkipConfirmation } from "~/confirmDialog";
 import {
   AlertDialog,
   AlertDialogClose,
@@ -240,6 +241,13 @@ export function ProjectScriptEditorDialog({
     onClose();
   };
 
+  const deleteScript = () => {
+    if (!request?.scriptId) return;
+    setDeleteConfirmOpen(false);
+    onClose();
+    onDelete(request.scriptId);
+  };
+
   return (
     <>
       <Dialog
@@ -373,7 +381,13 @@ export function ProjectScriptEditorDialog({
                 type="button"
                 variant="destructive-outline"
                 className="mr-auto"
-                onClick={() => setDeleteConfirmOpen(true)}
+                onClick={() => {
+                  if (shouldSkipConfirmation()) {
+                    deleteScript();
+                    return;
+                  }
+                  setDeleteConfirmOpen(true);
+                }}
               >
                 Delete
               </Button>
@@ -396,15 +410,7 @@ export function ProjectScriptEditorDialog({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogClose render={<Button variant="outline" />}>Cancel</AlertDialogClose>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                if (!request?.scriptId) return;
-                setDeleteConfirmOpen(false);
-                onClose();
-                onDelete(request.scriptId);
-              }}
-            >
+            <Button variant="destructive" onClick={deleteScript}>
               Delete action
             </Button>
           </AlertDialogFooter>

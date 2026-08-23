@@ -24,6 +24,8 @@ let state: ConfirmDialogState = idleState;
 let activeConfirmation: PendingConfirmation | null = null;
 let queuedConfirmations: PendingConfirmation[] = [];
 let registeredHostCount = 0;
+let shiftClickBypassActive = false;
+let shiftClickBypassReset: ReturnType<typeof setTimeout> | null = null;
 const listeners = new Set<() => void>();
 
 function publish(next: ConfirmDialogState): void {
@@ -54,6 +56,30 @@ export function subscribeConfirmDialog(listener: () => void): () => void {
 }
 
 /**
+ * Keeps the Shift modifier available while click handlers decide whether to
+ * open a confirmation. The timeout also covers promise continuations resolved
+ * by menu-item clicks in the same event turn.
+ */
+export function captureConfirmationTrigger(event: Pick<MouseEvent, "shiftKey">): void {
+  if (shiftClickBypassReset !== null) {
+    clearTimeout(shiftClickBypassReset);
+    shiftClickBypassReset = null;
+  }
+
+  shiftClickBypassActive = event.shiftKey;
+  if (!event.shiftKey) return;
+
+  shiftClickBypassReset = setTimeout(() => {
+    shiftClickBypassActive = false;
+    shiftClickBypassReset = null;
+  }, 0);
+}
+
+export function shouldSkipConfirmation(): boolean {
+  return shiftClickBypassActive;
+}
+
+/**
  * Registers the renderer host that can present themed confirmations. The
  * returned cleanup function also cancels any request left without a host.
  */
@@ -81,6 +107,7 @@ export function requestConfirmDialog(
   message: string,
   options?: ConfirmDialogOptions,
 ): Promise<boolean> | undefined {
+  if (shouldSkipConfirmation()) return Promise.resolve(true);
   if (registeredHostCount === 0) return undefined;
 
   const confirmation = new Promise<boolean>((resolve) => {
@@ -124,6 +151,11 @@ export function completeConfirmDialogClose(): void {
 }
 
 export function resetConfirmDialogForTests(): void {
+  if (shiftClickBypassReset !== null) {
+    clearTimeout(shiftClickBypassReset);
+    shiftClickBypassReset = null;
+  }
+  shiftClickBypassActive = false;
   resolvePendingConfirmations(false);
   registeredHostCount = 0;
   publish(idleState);

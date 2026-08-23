@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactElement } from "react";
 import { cn } from "../../lib/utils";
+import { shouldSkipConfirmation } from "../../confirmDialog";
 import {
   getThemeDefinition,
   getThemeModes,
@@ -567,53 +568,55 @@ export function ThemeLibrary({
     [notifyThemeSaveFailure, setTheme],
   );
 
+  const removeThemes = useCallback(
+    (themeIds: ReadonlyArray<string>) => {
+      const removedIds = new Set(themeIds);
+      if (removedIds.size === 0) return;
+      const removesBase = removedIds.has(getThemeDefinition(theme)?.id ?? "");
+      // Keep the themes installed if we cannot move the selection off one of
+      // them; the dialog stays open so the user can retry or cancel.
+      if (removesBase && !persistTheme(appearanceMode === "system" ? "system" : appearanceMode)) {
+        return;
+      }
+      for (const appearance of ["light", "dark"] as const) {
+        const half = themeHalves?.[appearance];
+        if (half === undefined) continue;
+        // Writing a base preference clears the whole mix, so halves that name
+        // a surviving theme are written back; removed halves fall back to base.
+        const next = half && removedIds.has(half) ? null : removesBase ? half : undefined;
+        if (next !== undefined && !setThemeHalf(appearance, next)) {
+          notifyThemeRemovalFailure();
+          return;
+        }
+      }
+      try {
+        removeCustomThemes([...removedIds]);
+      } catch {
+        notifyThemeRemovalFailure();
+        return;
+      }
+      setIsThemeRemovalOpen(false);
+    },
+    [appearanceMode, notifyThemeRemovalFailure, persistTheme, setThemeHalf, theme, themeHalves],
+  );
+
   const handleRemoveTheme = useCallback(
     (customTheme: ThemeDefinition, collectionThemes: ReadonlyArray<ThemeDefinition>) => {
+      if (collectionThemes.length === 1 && shouldSkipConfirmation()) {
+        removeThemes([customTheme.id]);
+        return;
+      }
       setThemeRemovalTarget({ theme: customTheme, collectionThemes });
       setThemeIdsToRemove(collectionThemes.length > 1 ? [] : [customTheme.id]);
       setIsThemeRemovalOpen(true);
     },
-    [],
+    [removeThemes],
   );
 
   const handleConfirmRemoveTheme = useCallback(() => {
     if (!themeRemovalTarget) return;
-    const removedIds = new Set(themeIdsToRemove);
-    if (removedIds.size === 0) return;
-    const removesBase = removedIds.has(getThemeDefinition(theme)?.id ?? "");
-    // Keep the themes installed if we cannot move the selection off one of
-    // them; the dialog stays open so the user can retry or cancel.
-    if (removesBase && !persistTheme(appearanceMode === "system" ? "system" : appearanceMode)) {
-      return;
-    }
-    for (const appearance of ["light", "dark"] as const) {
-      const half = themeHalves?.[appearance];
-      if (half === undefined) continue;
-      // Writing a base preference clears the whole mix, so halves that name
-      // a surviving theme are written back; removed halves fall back to base.
-      const next = half && removedIds.has(half) ? null : removesBase ? half : undefined;
-      if (next !== undefined && !setThemeHalf(appearance, next)) {
-        notifyThemeRemovalFailure();
-        return;
-      }
-    }
-    try {
-      removeCustomThemes([...removedIds]);
-    } catch {
-      notifyThemeRemovalFailure();
-      return;
-    }
-    setIsThemeRemovalOpen(false);
-  }, [
-    appearanceMode,
-    notifyThemeRemovalFailure,
-    persistTheme,
-    setThemeHalf,
-    theme,
-    themeHalves,
-    themeIdsToRemove,
-    themeRemovalTarget,
-  ]);
+    removeThemes(themeIdsToRemove);
+  }, [removeThemes, themeIdsToRemove, themeRemovalTarget]);
 
   // ----- Automatic-mode mixing -------------------------------------------
   // The pair model: one theme owns light, one owns dark, and the global

@@ -13,6 +13,7 @@ import {
   type OpenVsxThemeSort,
 } from "../../openVsxThemes";
 import { useDebouncedValue } from "../../state/queries";
+import { shouldSkipConfirmation } from "../../confirmDialog";
 import {
   getCustomThemes,
   getStoredCustomThemeCollection,
@@ -230,7 +231,7 @@ export function ThemeSearchSection({
         return;
       }
       const updated = installedCollection.length > 0;
-      if (updated && !allowUpdate) {
+      if (updated && !allowUpdate && !shouldSkipConfirmation()) {
         setPendingUpdate(extension);
         return;
       }

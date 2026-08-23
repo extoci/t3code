@@ -65,6 +65,7 @@ const relayClientRpcError = (message: string) => (cause: unknown) =>
 
 function ensureRelayClientAvailable(
   environmentId: EnvironmentId,
+  skipConfirmation: boolean,
 ): Effect.Effect<void, CloudEnvironmentLinkError, EnvironmentRegistry> {
   return Effect.gen(function* () {
     const registry = yield* EnvironmentRegistry;
@@ -78,10 +79,13 @@ function ensureRelayClientAvailable(
       });
     }
 
-    const confirmed = yield* Effect.tryPromise({
-      try: () => requestRelayClientInstallConfirmation(status.version),
-      catch: relayClientRpcError("Could not confirm relay client installation."),
-    });
+    let confirmed = true;
+    if (!skipConfirmation) {
+      confirmed = yield* Effect.tryPromise({
+        try: () => requestRelayClientInstallConfirmation(status.version),
+        catch: relayClientRpcError("Could not confirm relay client installation."),
+      });
+    }
     if (!confirmed) {
       return yield* new CloudEnvironmentLinkError({
         message: "Relay client installation was cancelled.",
@@ -403,6 +407,7 @@ export function linkPrimaryEnvironmentToCloud(input: {
   readonly target: CloudLinkTarget;
   readonly clerkToken: string;
   readonly mode?: CloudLinkMode;
+  readonly skipRelayClientInstallConfirmation?: boolean;
 }): Effect.Effect<
   void,
   CloudEnvironmentLinkError,
@@ -422,7 +427,10 @@ export function linkPrimaryEnvironmentToCloud(input: {
     const relayClient = yield* ManagedRelay.ManagedRelayClient;
     const environmentClient = yield* makeEnvironmentHttpApiClient(input.target.httpBaseUrl);
     if (managedTunnelsEnabled) {
-      yield* ensureRelayClientAvailable(EnvironmentId.make(input.target.environmentId));
+      yield* ensureRelayClientAvailable(
+        EnvironmentId.make(input.target.environmentId),
+        input.skipRelayClientInstallConfirmation ?? false,
+      );
     }
 
     const challenge = yield* relayClient
