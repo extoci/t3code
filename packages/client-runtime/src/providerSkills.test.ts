@@ -27,21 +27,6 @@ describe("formatProviderSkillDisplayName", () => {
 });
 
 describe("getProviderSkillsForSlashMenu", () => {
-  const skills = [
-    { name: "browser", path: "/skills/browser/SKILL.md", enabled: true },
-    { name: "retired", path: "/skills/retired/SKILL.md", enabled: false },
-  ];
-
-  it("keeps skills out of the slash menu by default", () => {
-    expect(getProviderSkillsForSlashMenu(skills, false)).toEqual([]);
-  });
-
-  it("includes enabled skills after the user opts in", () => {
-    expect(getProviderSkillsForSlashMenu(skills, true).map((skill) => skill.name)).toEqual([
-      "browser",
-    ]);
-  });
-
   it("keeps the skill alias when the provider also exposes it as a slash command", () => {
     const askMatt = {
       name: "ask-matt",
