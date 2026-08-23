@@ -14,11 +14,15 @@ type SlashSearchItem = Extract<
 
 function scoreSlashCommandItem(item: SlashSearchItem, query: string): number | null {
   if (item.type === "skill") {
-    if ("skill".startsWith(query)) {
+    if (query === "skill") {
       return 0;
     }
     const skillQuery = query.startsWith("skill:") ? query.slice("skill:".length) : query;
-    return skillQuery ? scoreProviderSkill(item.skill, skillQuery) : 0;
+    const skillScore = skillQuery ? scoreProviderSkill(item.skill, skillQuery) : 0;
+    if (skillScore !== null) {
+      return skillScore;
+    }
+    return "skill".startsWith(query) ? Number.MAX_SAFE_INTEGER : null;
   }
 
   const primaryValue =
