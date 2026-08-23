@@ -172,14 +172,14 @@ const ComposerCommandMenuItem = memo(function ComposerCommandMenuItem(props: {
         <span className="min-w-0 max-w-[45%] shrink-0 truncate font-sans text-xs font-medium">
           {isSlashSkill ? (
             <>
-              /<span className="text-muted-foreground! opacity-60">skill:</span>
+              /<span className="text-secondary-label">skill:</span>
               {formatProviderSkillDisplayName(isSlashSkill)}
             </>
           ) : (
             props.item.label
           )}
         </span>
-        <span className="min-w-0 max-w-[48ch] flex-1 truncate text-left text-muted-foreground! text-xs opacity-60">
+        <span className="min-w-0 max-w-[48ch] flex-1 truncate text-left text-secondary-label text-xs">
           {props.item.description}
         </span>
         {skillSourceKind ? (
@@ -215,7 +215,7 @@ function SkillSourceBadge(props: { kind: ProviderSkillSourceKind; showSkillSuffi
   const Icon = SKILL_SOURCE_ICON_BY_KIND[props.kind];
   return (
     <Badge className="ms-auto" variant="secondary">
-      <Icon aria-hidden="true" data-icon="inline-start" />
+      <Icon aria-hidden="true" className="text-current" />
       {SKILL_SOURCE_LABEL_BY_KIND[props.kind]}
       {props.showSkillSuffix ? " Skill" : null}
     </Badge>

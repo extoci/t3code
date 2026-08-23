@@ -88,9 +88,9 @@ describe("ComposerCommandMenu", () => {
     expect(markup).toContain(">App Skill</span>");
     expect(markup).toContain("Open and control the in-app browser");
     expect(markup).toContain("max-w-[48ch]");
-    expect(markup).toContain("text-muted-foreground! text-xs opacity-60");
+    expect(markup).toContain("text-secondary-label text-xs");
     expect(markup).toContain("ms-auto");
-    expect(markup).toContain('data-icon="inline-start"');
+    expect(markup).toContain("text-current");
     expect(markup.indexOf("Open and control the in-app browser")).toBeLessThan(
       markup.indexOf(">App Skill</span>"),
     );
@@ -126,14 +126,11 @@ describe("ComposerCommandMenu", () => {
       />,
     );
 
-    expect(markup).toContain(
-      '/<span class="text-muted-foreground! opacity-60">skill:</span>Ask Matt',
-    );
+    expect(markup).toContain('/<span class="text-secondary-label">skill:</span>Ask Matt');
     expect(markup).toContain('data-slot="badge"');
     expect(markup).toContain("lucide-folder");
     expect(markup).toContain(">Repo</span>");
     expect(markup).toContain("Find the right skill or workflow");
     expect(markup).not.toContain("font-medium text-secondary-label");
-    expect(markup).toContain('data-icon="inline-start"');
   });
 });
