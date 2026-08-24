@@ -74,7 +74,8 @@ const RIGHT_PANEL_STORAGE_KEY = "t3code:right-panel-state:v2";
 // v9 removed the "plan" surface kind (plans render inline in the transcript).
 // v10 keys pull-request surfaces by reference instead of a singleton tab.
 // v11 stops persisting the pull-request list's shared panel, so a restart opens the page fresh.
-const RIGHT_PANEL_STORAGE_VERSION = 11;
+// v12 gives project and rooted file surfaces disjoint, encoded ids.
+const RIGHT_PANEL_STORAGE_VERSION = 12;
 
 /**
  * The pull-request list's shared panel (see PULL_REQUESTS_PANEL_ID in the route) is session
@@ -173,7 +174,9 @@ export function rightPanelFileSurfaceId(
   relativePath: string,
   root?: RightPanelFileRoot,
 ): `file:${string}` {
-  return `file:${root ? `${encodeURIComponent(root.cwd)}:${relativePath}` : relativePath}`;
+  return root
+    ? `file:root:${encodeURIComponent(root.cwd)}:${encodeURIComponent(relativePath)}`
+    : `file:project:${encodeURIComponent(relativePath)}`;
 }
 
 const terminalSurface = (terminalId: string): RightPanelSurface => ({
@@ -265,6 +268,13 @@ function normalizeRevealLine(line: number | undefined): number | null {
   return Math.max(1, Math.trunc(line));
 }
 
+function persistedFileRoot(value: unknown): RightPanelFileRoot | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  if (!("cwd" in value) || typeof value.cwd !== "string") return undefined;
+  if (!("label" in value) || typeof value.label !== "string") return undefined;
+  return { cwd: value.cwd, label: value.label };
+}
+
 export function migratePersistedRightPanelState(persistedState: unknown): {
   byThreadKey: Record<string, ThreadRightPanelState>;
 } {
@@ -287,6 +297,7 @@ export function migratePersistedRightPanelState(persistedState: unknown): {
                     // transcript (v9).
                     if ((surface as { kind?: string }).kind === "plan") return [];
                     if (surface.kind === "file") {
+                      if (typeof surface.relativePath !== "string") return [];
                       const revealLine =
                         typeof surface.revealLine === "number" &&
                         Number.isFinite(surface.revealLine)
@@ -298,7 +309,17 @@ export function migratePersistedRightPanelState(persistedState: unknown): {
                         surface.revealRequestId >= 0
                           ? surface.revealRequestId
                           : 0;
-                      return [{ ...surface, revealLine, revealRequestId }];
+                      const { root: rawRoot, ...rest } = surface;
+                      const root = persistedFileRoot(rawRoot);
+                      return [
+                        {
+                          ...rest,
+                          id: rightPanelFileSurfaceId(surface.relativePath, root),
+                          ...(root ? { root } : {}),
+                          revealLine,
+                          revealRequestId,
+                        },
+                      ];
                     }
                     if (surface.kind === "pull-request") {
                       if (
@@ -354,10 +375,21 @@ export function migratePersistedRightPanelState(persistedState: unknown): {
                   })
                 : [];
               const rawActiveSurfaceId = validThreadState?.activeSurfaceId;
+              const rawActiveSurface = Array.isArray(validThreadState?.surfaces)
+                ? validThreadState.surfaces.find((surface) => surface.id === rawActiveSurfaceId)
+                : undefined;
+              const migratedRawActiveSurfaceId =
+                rawActiveSurface?.kind === "file" &&
+                typeof rawActiveSurface.relativePath === "string"
+                  ? rightPanelFileSurfaceId(
+                      rawActiveSurface.relativePath,
+                      persistedFileRoot(rawActiveSurface.root),
+                    )
+                  : rawActiveSurfaceId;
               const persistedActiveSurfaceId = surfaces.some(
-                (surface) => surface.id === rawActiveSurfaceId,
+                (surface) => surface.id === migratedRawActiveSurfaceId,
               )
-                ? (rawActiveSurfaceId ?? null)
+                ? (migratedRawActiveSurfaceId ?? null)
                 : rawActiveSurfaceId === "pull-request"
                   ? (surfaces.find((surface) => surface.kind === "pull-request")?.id ?? null)
                   : null;

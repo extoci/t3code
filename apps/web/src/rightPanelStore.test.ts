@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from "vite-plus/test";
 import {
   migratePersistedRightPanelState,
   pullRequestSurfaceId,
+  rightPanelFileSurfaceId,
   selectActiveRightPanel,
   selectActiveRightPanelSurface,
   selectSelectedRightPanelSurface,
@@ -15,6 +16,8 @@ import {
 
 const refA = scopeThreadRef("env-1" as EnvironmentId, ThreadId.make("thread-A"));
 const refB = scopeThreadRef("env-1" as EnvironmentId, ThreadId.make("thread-B"));
+const indexFileSurfaceId = rightPanelFileSurfaceId("src/index.ts");
+const readmeFileSurfaceId = rightPanelFileSurfaceId("README.md");
 
 beforeEach(() => {
   useRightPanelStore.setState({ byThreadKey: {} });
@@ -90,10 +93,10 @@ describe("rightPanelStore", () => {
       byThreadKey: {
         "env-1:thread-A": {
           isOpen: true,
-          activeSurfaceId: "file:src/index.ts",
+          activeSurfaceId: indexFileSurfaceId,
           surfaces: [
             {
-              id: "file:src/index.ts",
+              id: indexFileSurfaceId,
               kind: "file",
               relativePath: "src/index.ts",
               revealLine: null,
@@ -260,17 +263,17 @@ describe("rightPanelStore", () => {
 
     expect(selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, refA)).toEqual({
       isOpen: true,
-      activeSurfaceId: "file:README.md",
+      activeSurfaceId: readmeFileSurfaceId,
       surfaces: [
         {
-          id: "file:src/index.ts",
+          id: indexFileSurfaceId,
           kind: "file",
           relativePath: "src/index.ts",
           revealLine: null,
           revealRequestId: 2,
         },
         {
-          id: "file:README.md",
+          id: readmeFileSurfaceId,
           kind: "file",
           relativePath: "README.md",
           revealLine: null,
@@ -280,16 +283,34 @@ describe("rightPanelStore", () => {
     });
   });
 
+  it("keeps rooted and project file surface ids distinct", () => {
+    const root = { cwd: "/skills/demo", label: "Demo" };
+    const rootedRelativePath = "SKILL.md";
+    const projectRelativePath = `${encodeURIComponent(root.cwd)}:${rootedRelativePath}`;
+
+    useRightPanelStore.getState().openFile(refA, projectRelativePath);
+    useRightPanelStore.getState().openFile(refA, rootedRelativePath, undefined, root);
+
+    expect(
+      selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, refA).surfaces.map(
+        (surface) => surface.id,
+      ),
+    ).toEqual([
+      rightPanelFileSurfaceId(projectRelativePath),
+      rightPanelFileSurfaceId(rootedRelativePath, root),
+    ]);
+  });
+
   it("updates line reveal requests when reopening a file surface", () => {
     useRightPanelStore.getState().openFile(refA, "src/index.ts", 42);
     useRightPanelStore.getState().openFile(refA, "src/index.ts", 87);
 
     expect(selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, refA)).toEqual({
       isOpen: true,
-      activeSurfaceId: "file:src/index.ts",
+      activeSurfaceId: indexFileSurfaceId,
       surfaces: [
         {
-          id: "file:src/index.ts",
+          id: indexFileSurfaceId,
           kind: "file",
           relativePath: "src/index.ts",
           revealLine: 87,
@@ -302,10 +323,10 @@ describe("rightPanelStore", () => {
 
     expect(selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, refA)).toEqual({
       isOpen: true,
-      activeSurfaceId: "file:src/index.ts",
+      activeSurfaceId: indexFileSurfaceId,
       surfaces: [
         {
-          id: "file:src/index.ts",
+          id: indexFileSurfaceId,
           kind: "file",
           relativePath: "src/index.ts",
           revealLine: null,
@@ -639,14 +660,14 @@ describe("rightPanelStore", () => {
     useRightPanelStore.getState().openFile(refA, "src/index.ts");
     useRightPanelStore.getState().openTerminal(refA, "term-1");
 
-    useRightPanelStore.getState().closeOtherSurfaces(refA, "file:src/index.ts");
+    useRightPanelStore.getState().closeOtherSurfaces(refA, indexFileSurfaceId);
 
     expect(selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, refA)).toEqual({
       isOpen: true,
-      activeSurfaceId: "file:src/index.ts",
+      activeSurfaceId: indexFileSurfaceId,
       surfaces: [
         {
-          id: "file:src/index.ts",
+          id: indexFileSurfaceId,
           kind: "file",
           relativePath: "src/index.ts",
           revealLine: null,
