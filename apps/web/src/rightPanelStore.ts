@@ -25,6 +25,11 @@ export const RIGHT_PANEL_KINDS = [
 ] as const;
 export type RightPanelKind = (typeof RIGHT_PANEL_KINDS)[number];
 
+export interface RightPanelFileRoot {
+  cwd: string;
+  label: string;
+}
+
 export type RightPanelSurface =
   | { id: `browser:${string}`; kind: "preview"; resourceId: string }
   | { id: "browser:new"; kind: "preview"; resourceId: null }
@@ -42,6 +47,7 @@ export type RightPanelSurface =
       id: `file:${string}`;
       kind: "file";
       relativePath: string;
+      root?: RightPanelFileRoot;
       revealLine: number | null;
       revealRequestId: number;
     }
@@ -89,7 +95,12 @@ interface RightPanelStoreState {
     kind: Exclude<RightPanelKind, "file" | "terminal" | "pull-request">,
   ) => void;
   openBrowser: (ref: ScopedThreadRef, tabId: string | null) => void;
-  openFile: (ref: ScopedThreadRef, relativePath: string, line?: number) => void;
+  openFile: (
+    ref: ScopedThreadRef,
+    relativePath: string,
+    line?: number,
+    root?: RightPanelFileRoot,
+  ) => void;
   openPullRequest: (
     ref: ScopedThreadRef,
     target: { environmentId?: string; projectId: string; repository: string; number: number },
@@ -148,13 +159,22 @@ const fileSurface = (
   relativePath: string,
   revealLine: number | null,
   revealRequestId: number,
+  root?: RightPanelFileRoot,
 ): RightPanelSurface => ({
-  id: `file:${relativePath}`,
+  id: rightPanelFileSurfaceId(relativePath, root),
   kind: "file",
   relativePath,
+  ...(root ? { root } : {}),
   revealLine,
   revealRequestId,
 });
+
+export function rightPanelFileSurfaceId(
+  relativePath: string,
+  root?: RightPanelFileRoot,
+): `file:${string}` {
+  return `file:${root ? `${encodeURIComponent(root.cwd)}:${relativePath}` : relativePath}`;
+}
 
 const terminalSurface = (terminalId: string): RightPanelSurface => ({
   id: `terminal:${terminalId}`,
@@ -390,13 +410,13 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
             return upsertSurface(current, pullRequestSurface(target));
           }),
         })),
-      openFile: (ref, relativePath, line) =>
+      openFile: (ref, relativePath, line, root) =>
         set((state) => ({
           byThreadKey: updateThread(state.byThreadKey, scopedThreadKey(ref), (current) => {
             const withoutStandaloneExplorer = current.surfaces.filter(
               (surface) => surface.kind !== "files",
             );
-            const surfaceId = `file:${relativePath}` as const;
+            const surfaceId = rightPanelFileSurfaceId(relativePath, root);
             const existing = withoutStandaloneExplorer.find(
               (surface): surface is Extract<RightPanelSurface, { kind: "file" }> =>
                 surface.id === surfaceId && surface.kind === "file",
@@ -405,6 +425,7 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
               relativePath,
               normalizeRevealLine(line),
               (existing?.revealRequestId ?? 0) + 1,
+              root,
             );
             return {
               isOpen: true,

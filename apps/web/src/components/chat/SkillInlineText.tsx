@@ -1,5 +1,5 @@
 import { Children, cloneElement, isValidElement, type ReactNode } from "react";
-import type { ServerProviderSkill } from "@t3tools/contracts";
+import type { ScopedThreadRef, ServerProviderSkill } from "@t3tools/contracts";
 import { formatProviderSkillDisplayName } from "@t3tools/client-runtime/providerSkills";
 
 import {
@@ -9,12 +9,22 @@ import {
   SKILL_CHIP_ICON_SVG,
 } from "../composerInlineChip";
 import { cn } from "~/lib/utils";
+import { useRightPanelStore, type RightPanelFileRoot } from "~/rightPanelStore";
+import { resolvePathLinkTarget } from "~/terminal-links";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
 
 const SKILL_TOKEN_REGEX = /(^|\s)\$([a-zA-Z][a-zA-Z0-9:_-]*)(?=\s|$)/g;
 
-type InlineSkill = Pick<ServerProviderSkill, "name" | "displayName">;
+type InlineSkill = Pick<ServerProviderSkill, "name" | "displayName" | "path">;
 
-export function SkillInlineText(props: { text: string; skills: ReadonlyArray<InlineSkill> }) {
+interface SkillInlineTextProps {
+  text: string;
+  skills: ReadonlyArray<InlineSkill>;
+  threadRef?: ScopedThreadRef | undefined;
+  cwd?: string | undefined;
+}
+
+export function SkillInlineText(props: SkillInlineTextProps) {
   const nodes: ReactNode[] = [];
   let cursor = 0;
 
@@ -31,7 +41,15 @@ export function SkillInlineText(props: { text: string; skills: ReadonlyArray<Inl
     if (start > cursor) {
       nodes.push(props.text.slice(cursor, start));
     }
-    nodes.push(<SkillChip key={`${start}:${name}`} skill={skill} rawText={rawText} />);
+    nodes.push(
+      <SkillChip
+        key={`${start}:${name}`}
+        skill={skill}
+        rawText={rawText}
+        threadRef={props.threadRef}
+        cwd={props.cwd}
+      />,
+    );
     cursor = start + rawText.length;
   }
 
@@ -47,10 +65,12 @@ export function SkillInlineText(props: { text: string; skills: ReadonlyArray<Inl
 export function renderSkillInlineMarkdownChildren(
   children: ReactNode,
   skills: ReadonlyArray<InlineSkill>,
+  threadRef?: ScopedThreadRef,
+  cwd?: string,
 ): ReactNode {
   return Children.map(children, (child) => {
     if (typeof child === "string") {
-      return <SkillInlineText text={child} skills={skills} />;
+      return <SkillInlineText text={child} skills={skills} threadRef={threadRef} cwd={cwd} />;
     }
     if (!isValidElement<{ children?: ReactNode; node?: { tagName?: string } }>(child)) {
       return child;
@@ -67,29 +87,90 @@ export function renderSkillInlineMarkdownChildren(
     return cloneElement(
       child,
       undefined,
-      renderSkillInlineMarkdownChildren(child.props.children, skills),
+      renderSkillInlineMarkdownChildren(child.props.children, skills, threadRef, cwd),
     );
   });
 }
 
-function SkillChip(props: { skill: InlineSkill; rawText: string }) {
-  return (
-    <span className="inline-flex align-middle leading-none" data-markdown-copy={props.rawText}>
+function resolveSkillFileRoot(
+  path: string,
+  cwd: string | undefined,
+  label: string,
+): { relativePath: string; root: RightPanelFileRoot } | null {
+  const absolutePath = cwd ? resolvePathLinkTarget(path, cwd) : path;
+  const separatorIndex = Math.max(absolutePath.lastIndexOf("/"), absolutePath.lastIndexOf("\\"));
+  if (separatorIndex < 0 || separatorIndex === absolutePath.length - 1) return null;
+
+  const separator = absolutePath[separatorIndex] ?? "/";
+  const rootEnd =
+    separatorIndex === 0 || (separatorIndex === 2 && /^[a-zA-Z]:/.test(absolutePath))
+      ? separatorIndex + 1
+      : separatorIndex;
+  return {
+    relativePath: absolutePath.slice(separatorIndex + 1),
+    root: {
+      cwd: absolutePath.slice(0, rootEnd) || separator,
+      label,
+    },
+  };
+}
+
+function SkillChip(props: {
+  skill: InlineSkill;
+  rawText: string;
+  threadRef?: ScopedThreadRef | undefined;
+  cwd?: string | undefined;
+}) {
+  const label = formatProviderSkillDisplayName(props.skill);
+  const file = resolveSkillFileRoot(props.skill.path, props.cwd, label);
+  const threadRef = props.threadRef;
+  const openSkill =
+    threadRef && file
+      ? () =>
+          useRightPanelStore.getState().openFile(threadRef, file.relativePath, undefined, file.root)
+      : undefined;
+  const content = (
+    <>
       <span
-        className={cn(
-          CHAT_INLINE_CHIP_CLASS_NAME,
-          "border-fuchsia-500/25 bg-fuchsia-500/12 text-fuchsia-700 dark:text-fuchsia-300",
-        )}
-      >
-        <span
-          aria-hidden="true"
-          className={COMPOSER_INLINE_CHIP_ICON_CLASS_NAME}
-          dangerouslySetInnerHTML={{ __html: SKILL_CHIP_ICON_SVG }}
-        />
-        <span className={CHAT_INLINE_CHIP_LABEL_CLASS_NAME}>
-          {formatProviderSkillDisplayName(props.skill)}
-        </span>
-      </span>
+        aria-hidden="true"
+        className={COMPOSER_INLINE_CHIP_ICON_CLASS_NAME}
+        dangerouslySetInnerHTML={{ __html: SKILL_CHIP_ICON_SVG }}
+      />
+      <span className={CHAT_INLINE_CHIP_LABEL_CLASS_NAME}>{label}</span>
+    </>
+  );
+
+  const chip = openSkill ? (
+    <button
+      type="button"
+      className={cn(
+        CHAT_INLINE_CHIP_CLASS_NAME,
+        "inline-flex cursor-pointer align-middle leading-none border-fuchsia-500/25 bg-fuchsia-500/12 text-fuchsia-700 transition-colors hover:bg-fuchsia-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-500/40 dark:text-fuchsia-300",
+      )}
+      data-markdown-copy={props.rawText}
+      aria-label={`Open ${label} skill file`}
+      onClick={openSkill}
+    >
+      {content}
+    </button>
+  ) : (
+    <span
+      className={cn(
+        CHAT_INLINE_CHIP_CLASS_NAME,
+        "inline-flex align-middle leading-none border-fuchsia-500/25 bg-fuchsia-500/12 text-fuchsia-700 dark:text-fuchsia-300",
+      )}
+      data-markdown-copy={props.rawText}
+    >
+      {content}
     </span>
+  );
+
+  return (
+    <Tooltip>
+      <TooltipTrigger render={chip} />
+      <TooltipPopup side="top" className="max-w-sm break-all font-mono">
+        {props.skill.path}
+      </TooltipPopup>
+    </Tooltip>
   );
 }

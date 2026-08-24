@@ -7,7 +7,8 @@ multiple messages, then send again in the same thread.
 ## Commands and skills
 
 Type `/` to open the command menu. Type `$` to find and add a skill. Skill rows show their source,
-such as System, Personal, Project, or App.
+such as System, Personal, Project, or App. After you send the message, select its skill chip to open
+the skill file in the file panel.
 
 By default, the `/` menu includes skills. To keep this menu command-only, turn off **Show skills in
 slash menu** in **Settings → General**. Skill results use the `/skill:Skill Name` label and add the
