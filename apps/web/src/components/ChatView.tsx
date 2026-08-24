@@ -6581,6 +6581,7 @@ function ChatViewContent(props: ChatViewProps) {
           environmentId={activeProject.environmentId}
           cwd={activeFileSurface?.root?.cwd ?? activeWorkspaceRoot}
           projectName={activeFileSurface?.root?.label ?? activeProject.title}
+          fileRoot={activeFileSurface?.root}
           threadRef={activeThreadRef}
           composerDraftTarget={composerDraftTarget}
           keybindings={keybindings}

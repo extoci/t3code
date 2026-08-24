@@ -33,6 +33,7 @@ import { Toggle } from "~/components/ui/toggle";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
 import { stackedThreadToast, toastManager } from "~/components/ui/toast";
 import { type DraftId, useComposerDraftStore } from "~/composerDraftStore";
+import type { RightPanelFileRoot } from "~/rightPanelStore";
 import { buildFileReviewComment } from "~/reviewCommentContext";
 import { assetEnvironment } from "~/state/assets";
 import { useEnvironmentHttpBaseUrl, usePrimaryEnvironmentId } from "~/state/environments";
@@ -69,6 +70,7 @@ interface FilePreviewPanelProps {
   environmentId: EnvironmentId;
   cwd: string;
   projectName: string;
+  fileRoot?: RightPanelFileRoot | undefined;
   relativePath: string | null;
   threadRef: ScopedThreadRef;
   composerDraftTarget: ScopedThreadRef | DraftId;
@@ -703,6 +705,7 @@ function EditableFileSurface({
 function RenderedMarkdownSurface({
   environmentId,
   cwd,
+  fileRoot,
   relativePath,
   contents,
   threadRef,
@@ -716,6 +719,7 @@ function RenderedMarkdownSurface({
   | "wordWrap"
   | "onPostRender"
 > & {
+  fileRoot?: RightPanelFileRoot | undefined;
   threadRef: ScopedThreadRef;
 }) {
   const saveCoordinator = useFileSaveCoordinator({
@@ -730,6 +734,7 @@ function RenderedMarkdownSurface({
       <ChatMarkdown
         text={contents}
         cwd={cwd}
+        fileRoot={fileRoot}
         threadRef={threadRef}
         className="mx-auto max-w-4xl px-6 py-5"
         onTaskListChange={({ markerOffset, checked }) => {
@@ -759,6 +764,7 @@ export default function FilePreviewPanel({
   environmentId,
   cwd,
   projectName,
+  fileRoot,
   relativePath,
   threadRef,
   composerDraftTarget,
@@ -1015,6 +1021,7 @@ export default function FilePreviewPanel({
               <RenderedMarkdownSurface
                 environmentId={environmentId}
                 cwd={cwd}
+                fileRoot={fileRoot}
                 relativePath={relativePath}
                 threadRef={threadRef}
                 contents={file.data.contents}

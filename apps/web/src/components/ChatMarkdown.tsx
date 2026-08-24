@@ -86,7 +86,7 @@ import {
 import { readLocalApi } from "../localApi";
 import { useAssetUrlState } from "../assets/assetUrls";
 import { cn } from "../lib/utils";
-import { useRightPanelStore } from "../rightPanelStore";
+import { useRightPanelStore, type RightPanelFileRoot } from "../rightPanelStore";
 import { useActiveEnvironmentId } from "../state/entities";
 import { serverEnvironment } from "../state/server";
 import { assetEnvironment } from "../state/assets";
@@ -114,6 +114,7 @@ import {
 interface ChatMarkdownProps {
   text: string;
   cwd: string | undefined;
+  fileRoot?: RightPanelFileRoot | undefined;
   threadRef?: ScopedThreadRef | undefined;
   onTaskListChange?: ((input: { markerOffset: number; checked: boolean }) => void) | undefined;
   isStreaming?: boolean;
@@ -1447,6 +1448,7 @@ function areMarkdownFileLinkPropsEqual(
 function ChatMarkdown({
   text,
   cwd,
+  fileRoot,
   threadRef,
   onTaskListChange,
   isStreaming = false,
@@ -1573,7 +1575,7 @@ function ChatMarkdown({
       // in flight.
       const isLatestLookup = claimWorkspaceBasenameLookup();
       const openAt = (path: string) =>
-        useRightPanelStore.getState().openFile(threadRef, path, line);
+        useRightPanelStore.getState().openFile(threadRef, path, line, fileRoot);
       if (!cwd || !needsWorkspaceBasenameLookup(workspaceRelativePath)) {
         openAt(workspaceRelativePath);
         return;
@@ -1596,7 +1598,7 @@ function ChatMarkdown({
         openAt(match ?? workspaceRelativePath);
       })();
     },
-    [cwd, searchProjectEntries, threadRef],
+    [cwd, fileRoot, searchProjectEntries, threadRef],
   );
   /* eslint-disable react/no-unstable-nested-components -- ReactMarkdown requires component
    * renderers that close over this message's metadata. useMemo keeps them stable until that
