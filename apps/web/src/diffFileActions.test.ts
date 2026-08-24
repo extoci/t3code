@@ -3,7 +3,11 @@ import { EnvironmentId, ThreadId } from "@t3tools/contracts";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { openDiffFilePrimaryAction, resolveDiffPathForWorkspace } from "./diffFileActions";
-import { selectThreadRightPanelState, useRightPanelStore } from "./rightPanelStore";
+import {
+  rightPanelFileSurfaceId,
+  selectThreadRightPanelState,
+  useRightPanelStore,
+} from "./rightPanelStore";
 
 const THREAD_REF = scopeThreadRef(
   EnvironmentId.make("environment-local"),
@@ -29,7 +33,7 @@ describe("openDiffFilePrimaryAction", () => {
       selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, THREAD_REF),
     ).toMatchObject({
       isOpen: true,
-      activeSurfaceId: "file:apps/web/src/components/DiffPanel.tsx",
+      activeSurfaceId: rightPanelFileSurfaceId("apps/web/src/components/DiffPanel.tsx"),
     });
     expect(openInEditor).not.toHaveBeenCalled();
   });
@@ -64,7 +68,7 @@ describe("openDiffFilePrimaryAction", () => {
       selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, THREAD_REF),
     ).toMatchObject({
       isOpen: true,
-      activeSurfaceId: "file:Dockerfile",
+      activeSurfaceId: rightPanelFileSurfaceId("Dockerfile"),
     });
     expect(openInEditor).not.toHaveBeenCalled();
   });
