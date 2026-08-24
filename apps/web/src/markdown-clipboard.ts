@@ -8,6 +8,7 @@
 
 const SKIPPED_TAGS = new Set(["BUTTON", "INPUT", "SCRIPT", "STYLE", "TEMPLATE"]);
 const SKIPPED_CLASS_NAMES = ["select-none", "sr-only"];
+const PRESERVED_INTERACTIVE_CLASS_NAMES = ["chat-markdown-file-link", "chat-markdown-skill-chip"];
 const SANITIZED_HTML_SELECTOR = [
   "button",
   "input",
@@ -295,10 +296,10 @@ export function serializeTableElementToCsv(table: Element): string {
 
 function sanitizedHtmlFrom(container: Element): string {
   for (const node of container.querySelectorAll(SANITIZED_HTML_SELECTOR)) {
-    if (
-      node.classList.contains("chat-markdown-file-link") ||
-      node.closest(".chat-markdown-file-link")
-    ) {
+    const isPreservedInteractive = PRESERVED_INTERACTIVE_CLASS_NAMES.some(
+      (className) => node.classList.contains(className) || node.closest(`.${className}`),
+    );
+    if (isPreservedInteractive) {
       if (node.getAttribute("aria-hidden") === "true" || node.localName === "svg") {
         node.remove();
       }

@@ -8,6 +8,8 @@ const INLINE_CHIP_CLASS_NAME = `${INLINE_CHIP_GEOMETRY_CLASS_NAME} border border
 
 export const CHAT_INLINE_CHIP_CLASS_NAME = `${INLINE_CHIP_CLASS_NAME} text-[12px]`;
 
+export const CHAT_INLINE_SKILL_CHIP_CLASS_NAME = `${CHAT_INLINE_CHIP_CLASS_NAME} chat-markdown-skill-chip border-fuchsia-500/25 bg-fuchsia-500/12 text-fuchsia-700 dark:text-fuchsia-300`;
+
 export const COMPOSER_INLINE_CHIP_CLASS_NAME = `${INLINE_CHIP_CLASS_NAME} text-[0.86em] select-none`;
 
 export const COMPOSER_INLINE_CHIP_DECORATOR_CLASS_NAME =

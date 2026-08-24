@@ -500,7 +500,7 @@ function surfaceTitle(
       return "Files";
     case "file":
       return (
-        surface.root?.label ??
+        surface.label ??
         surface.relativePath.slice(
           Math.max(surface.relativePath.lastIndexOf("/"), surface.relativePath.lastIndexOf("\\")) +
             1,

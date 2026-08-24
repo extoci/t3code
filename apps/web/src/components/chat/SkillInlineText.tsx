@@ -3,8 +3,8 @@ import type { ScopedThreadRef, ServerProviderSkill } from "@t3tools/contracts";
 import { formatProviderSkillDisplayName } from "@t3tools/client-runtime/providerSkills";
 
 import {
-  CHAT_INLINE_CHIP_CLASS_NAME,
   CHAT_INLINE_CHIP_LABEL_CLASS_NAME,
+  CHAT_INLINE_SKILL_CHIP_CLASS_NAME,
   COMPOSER_INLINE_CHIP_ICON_CLASS_NAME,
   SKILL_CHIP_ICON_SVG,
 } from "../composerInlineChip";
@@ -127,7 +127,9 @@ function SkillChip(props: {
   const openSkill =
     threadRef && file
       ? () =>
-          useRightPanelStore.getState().openFile(threadRef, file.relativePath, undefined, file.root)
+          useRightPanelStore
+            .getState()
+            .openFile(threadRef, file.relativePath, undefined, file.root, label)
       : undefined;
   const content = (
     <>
@@ -144,8 +146,8 @@ function SkillChip(props: {
     <button
       type="button"
       className={cn(
-        CHAT_INLINE_CHIP_CLASS_NAME,
-        "inline-flex cursor-pointer align-middle leading-none border-fuchsia-500/25 bg-fuchsia-500/12 text-fuchsia-700 transition-colors hover:bg-fuchsia-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-500/40 dark:text-fuchsia-300",
+        CHAT_INLINE_SKILL_CHIP_CLASS_NAME,
+        "cursor-pointer transition-colors hover:bg-fuchsia-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-500/40",
       )}
       data-markdown-copy={props.rawText}
       aria-label={`Open ${label} skill file`}
@@ -154,13 +156,7 @@ function SkillChip(props: {
       {content}
     </button>
   ) : (
-    <span
-      className={cn(
-        CHAT_INLINE_CHIP_CLASS_NAME,
-        "inline-flex align-middle leading-none border-fuchsia-500/25 bg-fuchsia-500/12 text-fuchsia-700 dark:text-fuchsia-300",
-      )}
-      data-markdown-copy={props.rawText}
-    >
+    <span className={CHAT_INLINE_SKILL_CHIP_CLASS_NAME} data-markdown-copy={props.rawText}>
       {content}
     </span>
   );

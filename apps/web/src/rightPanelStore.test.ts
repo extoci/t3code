@@ -301,6 +301,19 @@ describe("rightPanelStore", () => {
     ]);
   });
 
+  it("keeps a skill label on its file instead of every file under the skill root", () => {
+    const root = { cwd: "/skills/demo", label: "Demo" };
+
+    useRightPanelStore.getState().openFile(refA, "SKILL.md", undefined, root, "Demo");
+    useRightPanelStore.getState().openFile(refA, "references/setup.md", undefined, root);
+
+    expect(
+      selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, refA).surfaces.map(
+        (surface) => (surface.kind === "file" ? surface.label : undefined),
+      ),
+    ).toEqual(["Demo", undefined]);
+  });
+
   it("updates line reveal requests when reopening a file surface", () => {
     useRightPanelStore.getState().openFile(refA, "src/index.ts", 42);
     useRightPanelStore.getState().openFile(refA, "src/index.ts", 87);

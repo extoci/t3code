@@ -48,6 +48,7 @@ export type RightPanelSurface =
       kind: "file";
       relativePath: string;
       root?: RightPanelFileRoot;
+      label?: string;
       revealLine: number | null;
       revealRequestId: number;
     }
@@ -101,6 +102,7 @@ interface RightPanelStoreState {
     relativePath: string,
     line?: number,
     root?: RightPanelFileRoot,
+    label?: string,
   ) => void;
   openPullRequest: (
     ref: ScopedThreadRef,
@@ -161,11 +163,13 @@ const fileSurface = (
   revealLine: number | null,
   revealRequestId: number,
   root?: RightPanelFileRoot,
+  label?: string,
 ): RightPanelSurface => ({
   id: rightPanelFileSurfaceId(relativePath, root),
   kind: "file",
   relativePath,
   ...(root ? { root } : {}),
+  ...(label ? { label } : {}),
   revealLine,
   revealRequestId,
 });
@@ -309,13 +313,14 @@ export function migratePersistedRightPanelState(persistedState: unknown): {
                         surface.revealRequestId >= 0
                           ? surface.revealRequestId
                           : 0;
-                      const { root: rawRoot, ...rest } = surface;
+                      const { root: rawRoot, label: rawLabel, ...rest } = surface;
                       const root = persistedFileRoot(rawRoot);
                       return [
                         {
                           ...rest,
                           id: rightPanelFileSurfaceId(surface.relativePath, root),
                           ...(root ? { root } : {}),
+                          ...(typeof rawLabel === "string" ? { label: rawLabel } : {}),
                           revealLine,
                           revealRequestId,
                         },
@@ -442,7 +447,7 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
             return upsertSurface(current, pullRequestSurface(target));
           }),
         })),
-      openFile: (ref, relativePath, line, root) =>
+      openFile: (ref, relativePath, line, root, label) =>
         set((state) => ({
           byThreadKey: updateThread(state.byThreadKey, scopedThreadKey(ref), (current) => {
             const withoutStandaloneExplorer = current.surfaces.filter(
@@ -458,6 +463,7 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
               normalizeRevealLine(line),
               (existing?.revealRequestId ?? 0) + 1,
               root,
+              label ?? existing?.label,
             );
             return {
               isOpen: true,
