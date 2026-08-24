@@ -2224,7 +2224,9 @@ function workEntryPreview(
   if ((workEntry.changedFiles?.length ?? 0) === 0) return null;
   const [firstPath] = workEntry.changedFiles ?? [];
   if (!firstPath) return null;
-  const displayPath = formatWorkspaceRelativePath(firstPath, workspaceRoot);
+  const displayPath = formatWorkspaceRelativePath(firstPath, workspaceRoot, {
+    includeWorkspaceLabel: false,
+  });
   return workEntry.changedFiles!.length === 1
     ? displayPath
     : `${displayPath} +${workEntry.changedFiles!.length - 1} more`;
@@ -2447,7 +2449,11 @@ function buildToolCallExpandedBody(
   if (changedFiles.length > 0) {
     blocks.push(
       changedFiles
-        .map((filePath) => formatWorkspaceRelativePath(filePath, workspaceRoot))
+        .map((filePath) =>
+          formatWorkspaceRelativePath(filePath, workspaceRoot, {
+            includeWorkspaceLabel: false,
+          }),
+        )
         .join("\n"),
     );
   }

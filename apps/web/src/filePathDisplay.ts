@@ -24,9 +24,11 @@ function stripRelativePrefixes(path: string): string {
 export function formatWorkspaceRelativePath(
   pathWithPosition: string,
   workspaceRoot: string | undefined,
+  options?: { readonly includeWorkspaceLabel?: boolean },
 ): string {
   const { path, line, column } = splitPathAndPosition(pathWithPosition);
   const normalizedPath = canonicalizeWindowsDrivePath(normalizePathSeparators(path));
+  const includeWorkspaceLabel = options?.includeWorkspaceLabel ?? true;
 
   let displayPath = normalizedPath;
   if (workspaceRoot) {
@@ -40,15 +42,19 @@ export function formatWorkspaceRelativePath(
     const workspaceLabelWithSeparator = `${workspaceLabel.toLowerCase()}/`;
 
     if (pathForCompare === workspaceForCompare) {
-      displayPath = workspaceLabel;
+      displayPath = includeWorkspaceLabel ? workspaceLabel : ".";
     } else if (pathForCompare.startsWith(workspaceWithSeparator)) {
       const relativeSuffix = normalizedPath.slice(normalizedWorkspaceRoot.length + 1);
-      displayPath = `${workspaceLabel}/${relativeSuffix}`;
+      displayPath = includeWorkspaceLabel ? `${workspaceLabel}/${relativeSuffix}` : relativeSuffix;
     } else if (!normalizedPath.startsWith("/")) {
       const relativePath = stripRelativePrefixes(normalizedPath);
-      displayPath = pathForCompare.startsWith(workspaceLabelWithSeparator)
-        ? normalizedPath
-        : `${workspaceLabel}/${relativePath}`;
+      if (pathForCompare.startsWith(workspaceLabelWithSeparator)) {
+        displayPath = includeWorkspaceLabel
+          ? normalizedPath
+          : relativePath.slice(workspaceLabel.length + 1);
+      } else {
+        displayPath = includeWorkspaceLabel ? `${workspaceLabel}/${relativePath}` : relativePath;
+      }
     }
   }
 
