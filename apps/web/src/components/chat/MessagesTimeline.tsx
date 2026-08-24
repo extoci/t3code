@@ -2070,7 +2070,7 @@ function UserMessageReviewCommentCard({ comment }: { comment: ReviewCommentConte
       {fenceLanguage !== "diff" && comment.diff.trim().length > 0 && (
         <ChatMarkdown
           text={formatReviewCommentFence(fenceLanguage, comment.diff)}
-          cwd={ctx.markdownCwd}
+          cwd={ctx.markdownCwd ?? ctx.workspaceRoot}
           threadRef={ctx.threadRef ?? undefined}
           skills={ctx.skills}
           className="text-message-foreground"
