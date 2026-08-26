@@ -14,7 +14,7 @@ import {
 } from "@t3tools/client-runtime/state/runtime";
 import { ChevronRight, Code2, Eye, FolderTree, Globe2, LoaderCircle } from "lucide-react";
 import * as Schema from "effect/Schema";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { isBrowserPreviewFile, openFileInPreview } from "~/browser/openFileInPreview";
 import { useAssetUrlState } from "~/assets/assetUrls";
@@ -32,7 +32,9 @@ import { ScrollArea } from "~/components/ui/scroll-area";
 import { Toggle } from "~/components/ui/toggle";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
 import { stackedThreadToast, toastManager } from "~/components/ui/toast";
+import { RightPanelResizeHandle } from "~/components/preview/RightPanelResizeHandle";
 import { type DraftId, useComposerDraftStore } from "~/composerDraftStore";
+import { useResizableWidth } from "~/hooks/useResizableWidth";
 import { buildFileReviewComment } from "~/reviewCommentContext";
 import { assetEnvironment } from "~/state/assets";
 import { useEnvironmentHttpBaseUrl, usePrimaryEnvironmentId } from "~/state/environments";
@@ -81,6 +83,11 @@ interface FilePreviewPanelProps {
 }
 
 const FILE_EXPLORER_STORAGE_KEY = "t3code.fileExplorerOpen";
+const FILE_EXPLORER_WIDTH_STORAGE_KEY = "t3code:file-explorer-width";
+const FILE_EXPLORER_DEFAULT_WIDTH = 256;
+const FILE_EXPLORER_MIN_WIDTH = 160;
+const FILE_EXPLORER_MAX_WIDTH_FRACTION = 0.7;
+const FILE_CONTENT_MIN_WIDTH = 256;
 const RENDER_MARKDOWN_STORAGE_KEY = "t3code.renderMarkdown";
 const FILE_SAVE_DEBOUNCE_MS = 500;
 const FILE_LINK_REVEAL_ATTRIBUTE = "data-file-link-reveal";
@@ -755,6 +762,36 @@ function initialExplorerOpen(): boolean {
   }
 }
 
+function getFileExplorerMaxWidth(containerWidth?: number): number {
+  if (containerWidth === undefined) return FILE_EXPLORER_DEFAULT_WIDTH;
+  return Math.max(
+    FILE_EXPLORER_MIN_WIDTH,
+    Math.min(
+      Math.floor(containerWidth * FILE_EXPLORER_MAX_WIDTH_FRACTION),
+      containerWidth - FILE_CONTENT_MIN_WIDTH,
+    ),
+  );
+}
+
+function useFileExplorerMaxWidth(
+  containerRef: React.RefObject<HTMLDivElement | null>,
+  enabled: boolean,
+): number {
+  const [containerWidth, setContainerWidth] = useState<number | undefined>(undefined);
+  useLayoutEffect(() => {
+    if (!enabled) return;
+    const container = containerRef.current;
+    if (!container) return;
+    const measure = () => setContainerWidth(container.clientWidth);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [containerRef, enabled]);
+  return getFileExplorerMaxWidth(containerWidth);
+}
+
 export default function FilePreviewPanel({
   environmentId,
   cwd,
@@ -797,6 +834,22 @@ export default function FilePreviewPanel({
     null,
   );
   const breadcrumbRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const explorerMaxWidth = useFileExplorerMaxWidth(
+    contentRef,
+    explorerOpen && relativePath !== null,
+  );
+  const {
+    width: explorerWidth,
+    handlers: explorerResizeHandlers,
+    resetWidth: resetExplorerWidth,
+  } = useResizableWidth({
+    storageKey: FILE_EXPLORER_WIDTH_STORAGE_KEY,
+    defaultWidth: FILE_EXPLORER_DEFAULT_WIDTH,
+    minWidth: FILE_EXPLORER_MIN_WIDTH,
+    maxWidth: explorerMaxWidth,
+    edge: "left",
+  });
   const isMarkdown = relativePath ? isMarkdownPreviewFile(relativePath) : false;
   // A reveal still wins over the preference: the line only exists in the source.
   const renderMarkdown =
@@ -987,7 +1040,7 @@ export default function FilePreviewPanel({
           Preview limited to the first 1 MB of a {file.data.byteLength.toLocaleString()} byte file.
         </div>
       ) : null}
-      <div className="flex min-h-0 flex-1 overflow-hidden">
+      <div ref={contentRef} className="flex min-h-0 flex-1 overflow-hidden">
         <div
           className={cn(
             "min-w-0 flex-1 flex-col overflow-hidden",
@@ -1066,12 +1119,17 @@ export default function FilePreviewPanel({
         {explorerOpen || relativePath === null ? (
           <aside
             className={cn(
-              "flex min-h-0 shrink-0 bg-background",
-              relativePath
-                ? "w-[min(22rem,46%)] min-w-64 border-l border-border/60"
-                : "min-w-0 flex-1",
+              "relative flex min-h-0 shrink-0 bg-background",
+              relativePath ? "min-w-0 border-l border-border/60" : "min-w-0 flex-1",
             )}
+            style={relativePath ? { width: `${explorerWidth}px` } : undefined}
           >
+            {relativePath ? (
+              <RightPanelResizeHandle
+                handlers={explorerResizeHandlers}
+                onDoubleClick={resetExplorerWidth}
+              />
+            ) : null}
             <FileBrowserPanel
               key={`${environmentId}:${cwd}`}
               environmentId={environmentId}
