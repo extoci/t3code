@@ -108,11 +108,12 @@ export function useResizableWidth(options: UseResizableWidthOptions): {
       }
       document.body.style.cursor = "col-resize";
       document.body.style.userSelect = "none";
+      const renderedWidth = target.parentElement?.getBoundingClientRect().width ?? clampedWidth;
       dragStateRef.current = {
         pointerId: event.pointerId,
         startX: event.clientX,
-        startWidth: clampedWidth,
-        pending: clampedWidth,
+        startWidth: renderedWidth,
+        pending: renderedWidth,
         rafId: null,
         target,
       };

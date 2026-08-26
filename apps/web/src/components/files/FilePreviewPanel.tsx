@@ -14,7 +14,7 @@ import {
 } from "@t3tools/client-runtime/state/runtime";
 import { ChevronRight, Code2, Eye, FolderTree, Globe2, LoaderCircle } from "lucide-react";
 import * as Schema from "effect/Schema";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { isBrowserPreviewFile, openFileInPreview } from "~/browser/openFileInPreview";
 import { useAssetUrlState } from "~/assets/assetUrls";
@@ -44,7 +44,6 @@ import { useAtomCommand } from "~/state/use-atom-command";
 import { useAtomQueryRunner } from "~/state/use-atom-query-runner";
 
 import FileBrowserPanel from "./FileBrowserPanel";
-import { getFileExplorerWidthLimits } from "./fileExplorerWidth";
 import {
   type FileCommentAnnotationEntry,
   type FileCommentAnnotationGroup,
@@ -86,6 +85,8 @@ interface FilePreviewPanelProps {
 const FILE_EXPLORER_STORAGE_KEY = "t3code.fileExplorerOpen";
 const FILE_EXPLORER_WIDTH_STORAGE_KEY = "t3code:file-explorer-width";
 const FILE_EXPLORER_DEFAULT_WIDTH = 256;
+const FILE_EXPLORER_MIN_WIDTH = 160;
+const FILE_CONTENT_MIN_WIDTH = 256;
 const RENDER_MARKDOWN_STORAGE_KEY = "t3code.renderMarkdown";
 const FILE_SAVE_DEBOUNCE_MS = 500;
 const FILE_LINK_REVEAL_ATTRIBUTE = "data-file-link-reveal";
@@ -760,25 +761,6 @@ function initialExplorerOpen(): boolean {
   }
 }
 
-function useFileExplorerWidthLimits(
-  containerRef: React.RefObject<HTMLDivElement | null>,
-  enabled: boolean,
-) {
-  const [containerWidth, setContainerWidth] = useState<number | undefined>(undefined);
-  useLayoutEffect(() => {
-    if (!enabled) return;
-    const container = containerRef.current;
-    if (!container) return;
-    const measure = () => setContainerWidth(container.clientWidth);
-    measure();
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(container);
-    return () => observer.disconnect();
-  }, [containerRef, enabled]);
-  return getFileExplorerWidthLimits(containerWidth);
-}
-
 export default function FilePreviewPanel({
   environmentId,
   cwd,
@@ -821,11 +803,6 @@ export default function FilePreviewPanel({
     null,
   );
   const breadcrumbRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const explorerWidthLimits = useFileExplorerWidthLimits(
-    contentRef,
-    explorerOpen && relativePath !== null,
-  );
   const {
     width: explorerWidth,
     handlers: explorerResizeHandlers,
@@ -833,8 +810,8 @@ export default function FilePreviewPanel({
   } = useResizableWidth({
     storageKey: FILE_EXPLORER_WIDTH_STORAGE_KEY,
     defaultWidth: FILE_EXPLORER_DEFAULT_WIDTH,
-    minWidth: explorerWidthLimits.minWidth,
-    maxWidth: explorerWidthLimits.maxWidth,
+    minWidth: FILE_EXPLORER_MIN_WIDTH,
+    maxWidth: Number.POSITIVE_INFINITY,
     edge: "left",
   });
   const isMarkdown = relativePath ? isMarkdownPreviewFile(relativePath) : false;
@@ -1027,7 +1004,7 @@ export default function FilePreviewPanel({
           Preview limited to the first 1 MB of a {file.data.byteLength.toLocaleString()} byte file.
         </div>
       ) : null}
-      <div ref={contentRef} className="flex min-h-0 flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         <div
           className={cn(
             "min-w-0 flex-1 flex-col overflow-hidden",
@@ -1107,9 +1084,17 @@ export default function FilePreviewPanel({
           <aside
             className={cn(
               "relative flex min-h-0 shrink-0 bg-background",
-              relativePath ? "min-w-0 border-l border-border/60" : "min-w-0 flex-1",
+              relativePath ? "border-l border-border/60" : "min-w-0 flex-1",
             )}
-            style={relativePath ? { width: `${explorerWidth}px` } : undefined}
+            style={
+              relativePath
+                ? {
+                    width: explorerWidth,
+                    minWidth: FILE_EXPLORER_MIN_WIDTH,
+                    maxWidth: `min(70%, calc(100% - ${FILE_CONTENT_MIN_WIDTH}px))`,
+                  }
+                : undefined
+            }
           >
             {relativePath ? (
               <RightPanelResizeHandle
