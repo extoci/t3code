@@ -147,7 +147,7 @@ function SkillChip(props: {
       type="button"
       className={cn(
         CHAT_INLINE_SKILL_CHIP_CLASS_NAME,
-        "cursor-pointer transition-colors hover:bg-fuchsia-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "cursor-pointer select-text transition-colors hover:bg-fuchsia-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
       )}
       data-markdown-copy={props.rawText}
       aria-label={`Open ${label} skill file`}
