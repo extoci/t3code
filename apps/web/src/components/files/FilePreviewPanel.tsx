@@ -14,7 +14,7 @@ import {
 } from "@t3tools/client-runtime/state/runtime";
 import { ChevronRight, Code2, Eye, FolderTree, Globe2, LoaderCircle } from "lucide-react";
 import * as Schema from "effect/Schema";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { isBrowserPreviewFile, openFileInPreview } from "~/browser/openFileInPreview";
 import { useAssetUrlState } from "~/assets/assetUrls";
@@ -87,6 +87,7 @@ const FILE_EXPLORER_WIDTH_STORAGE_KEY = "t3code:file-explorer-width";
 const FILE_EXPLORER_DEFAULT_WIDTH = 256;
 const FILE_EXPLORER_MIN_WIDTH = 160;
 const FILE_EXPLORER_MAX_WIDTH = 352;
+const FILE_CONTENT_MIN_WIDTH = 256;
 const RENDER_MARKDOWN_STORAGE_KEY = "t3code.renderMarkdown";
 const FILE_SAVE_DEBOUNCE_MS = 500;
 const FILE_LINK_REVEAL_ATTRIBUTE = "data-file-link-reveal";
@@ -761,6 +762,30 @@ function initialExplorerOpen(): boolean {
   }
 }
 
+function useFileExplorerMaxWidth(
+  containerRef: React.RefObject<HTMLDivElement | null>,
+  enabled: boolean,
+) {
+  const [maxWidth, setMaxWidth] = useState(Number.POSITIVE_INFINITY);
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!enabled || !container) return;
+    const measure = () =>
+      setMaxWidth(
+        Math.max(
+          FILE_EXPLORER_MIN_WIDTH,
+          Math.min(FILE_EXPLORER_MAX_WIDTH, container.clientWidth - FILE_CONTENT_MIN_WIDTH),
+        ),
+      );
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [containerRef, enabled]);
+  return maxWidth;
+}
+
 export default function FilePreviewPanel({
   environmentId,
   cwd,
@@ -803,6 +828,11 @@ export default function FilePreviewPanel({
     null,
   );
   const breadcrumbRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const explorerMaxWidth = useFileExplorerMaxWidth(
+    contentRef,
+    explorerOpen && relativePath !== null,
+  );
   const {
     width: explorerWidth,
     handlers: explorerResizeHandlers,
@@ -811,7 +841,7 @@ export default function FilePreviewPanel({
     storageKey: FILE_EXPLORER_WIDTH_STORAGE_KEY,
     defaultWidth: FILE_EXPLORER_DEFAULT_WIDTH,
     minWidth: FILE_EXPLORER_MIN_WIDTH,
-    maxWidth: FILE_EXPLORER_MAX_WIDTH,
+    maxWidth: explorerMaxWidth,
     edge: "left",
   });
   const isMarkdown = relativePath ? isMarkdownPreviewFile(relativePath) : false;
@@ -1004,7 +1034,7 @@ export default function FilePreviewPanel({
           Preview limited to the first 1 MB of a {file.data.byteLength.toLocaleString()} byte file.
         </div>
       ) : null}
-      <div className="flex min-h-0 flex-1 overflow-hidden">
+      <div ref={contentRef} className="flex min-h-0 flex-1 overflow-hidden">
         <div
           className={cn(
             "min-w-0 flex-1 flex-col overflow-hidden",
