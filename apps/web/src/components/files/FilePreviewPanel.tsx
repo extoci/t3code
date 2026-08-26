@@ -44,6 +44,7 @@ import { useAtomCommand } from "~/state/use-atom-command";
 import { useAtomQueryRunner } from "~/state/use-atom-query-runner";
 
 import FileBrowserPanel from "./FileBrowserPanel";
+import { getFileExplorerWidthLimits } from "./fileExplorerWidth";
 import {
   type FileCommentAnnotationEntry,
   type FileCommentAnnotationGroup,
@@ -85,9 +86,6 @@ interface FilePreviewPanelProps {
 const FILE_EXPLORER_STORAGE_KEY = "t3code.fileExplorerOpen";
 const FILE_EXPLORER_WIDTH_STORAGE_KEY = "t3code:file-explorer-width";
 const FILE_EXPLORER_DEFAULT_WIDTH = 256;
-const FILE_EXPLORER_MIN_WIDTH = 160;
-const FILE_EXPLORER_MAX_WIDTH_FRACTION = 0.7;
-const FILE_CONTENT_MIN_WIDTH = 256;
 const RENDER_MARKDOWN_STORAGE_KEY = "t3code.renderMarkdown";
 const FILE_SAVE_DEBOUNCE_MS = 500;
 const FILE_LINK_REVEAL_ATTRIBUTE = "data-file-link-reveal";
@@ -762,27 +760,10 @@ function initialExplorerOpen(): boolean {
   }
 }
 
-function getFileExplorerWidthLimits(containerWidth?: number): {
-  minWidth: number;
-  maxWidth: number;
-} {
-  if (containerWidth === undefined) {
-    return { minWidth: FILE_EXPLORER_MIN_WIDTH, maxWidth: Number.POSITIVE_INFINITY };
-  }
-  const availableWidth = Math.max(0, Math.floor(containerWidth - FILE_CONTENT_MIN_WIDTH));
-  return {
-    minWidth: FILE_EXPLORER_MIN_WIDTH,
-    maxWidth: Math.max(
-      FILE_EXPLORER_MIN_WIDTH,
-      Math.min(Math.floor(containerWidth * FILE_EXPLORER_MAX_WIDTH_FRACTION), availableWidth),
-    ),
-  };
-}
-
 function useFileExplorerWidthLimits(
   containerRef: React.RefObject<HTMLDivElement | null>,
   enabled: boolean,
-): { minWidth: number; maxWidth: number } {
+) {
   const [containerWidth, setContainerWidth] = useState<number | undefined>(undefined);
   useLayoutEffect(() => {
     if (!enabled) return;

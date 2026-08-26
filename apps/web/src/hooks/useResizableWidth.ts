@@ -172,8 +172,8 @@ export function useResizableWidth(options: UseResizableWidthOptions): {
     } catch (error) {
       console.error("Could not reset persisted panel width.", error);
     }
-    setWidth(clamp(defaultWidth));
-  }, [clamp, defaultWidth, storageKey]);
+    setWidth(defaultWidth);
+  }, [defaultWidth, storageKey]);
 
   return {
     width: clampedWidth,
