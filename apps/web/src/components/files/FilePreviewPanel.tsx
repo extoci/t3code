@@ -86,7 +86,7 @@ const FILE_EXPLORER_STORAGE_KEY = "t3code.fileExplorerOpen";
 const FILE_EXPLORER_WIDTH_STORAGE_KEY = "t3code:file-explorer-width";
 const FILE_EXPLORER_DEFAULT_WIDTH = 256;
 const FILE_EXPLORER_MIN_WIDTH = 160;
-const FILE_CONTENT_MIN_WIDTH = 256;
+const FILE_EXPLORER_MAX_WIDTH = 352;
 const RENDER_MARKDOWN_STORAGE_KEY = "t3code.renderMarkdown";
 const FILE_SAVE_DEBOUNCE_MS = 500;
 const FILE_LINK_REVEAL_ATTRIBUTE = "data-file-link-reveal";
@@ -811,7 +811,7 @@ export default function FilePreviewPanel({
     storageKey: FILE_EXPLORER_WIDTH_STORAGE_KEY,
     defaultWidth: FILE_EXPLORER_DEFAULT_WIDTH,
     minWidth: FILE_EXPLORER_MIN_WIDTH,
-    maxWidth: Number.POSITIVE_INFINITY,
+    maxWidth: FILE_EXPLORER_MAX_WIDTH,
     edge: "left",
   });
   const isMarkdown = relativePath ? isMarkdownPreviewFile(relativePath) : false;
@@ -1086,15 +1086,7 @@ export default function FilePreviewPanel({
               "relative flex min-h-0 shrink-0 bg-background",
               relativePath ? "border-l border-border/60" : "min-w-0 flex-1",
             )}
-            style={
-              relativePath
-                ? {
-                    width: explorerWidth,
-                    minWidth: FILE_EXPLORER_MIN_WIDTH,
-                    maxWidth: `min(70%, calc(100% - ${FILE_CONTENT_MIN_WIDTH}px))`,
-                  }
-                : undefined
-            }
+            style={relativePath ? { width: explorerWidth } : undefined}
           >
             {relativePath ? (
               <RightPanelResizeHandle

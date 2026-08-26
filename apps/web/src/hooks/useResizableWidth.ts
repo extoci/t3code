@@ -1,5 +1,11 @@
 import * as Schema from "effect/Schema";
-import { type PointerEvent as ReactPointerEvent, useCallback, useRef, useState } from "react";
+import {
+  type PointerEvent as ReactPointerEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import {
   getLocalStorageItem,
@@ -95,6 +101,14 @@ export function useResizableWidth(options: UseResizableWidthOptions): {
     dragStateRef.current = null;
   }, []);
 
+  useEffect(
+    () => () => {
+      const pointerId = dragStateRef.current?.pointerId;
+      if (pointerId !== undefined) releasePointer(pointerId);
+    },
+    [releasePointer],
+  );
+
   const onPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLElement>) => {
       if (event.button !== 0) return;
@@ -108,12 +122,11 @@ export function useResizableWidth(options: UseResizableWidthOptions): {
       }
       document.body.style.cursor = "col-resize";
       document.body.style.userSelect = "none";
-      const renderedWidth = target.parentElement?.getBoundingClientRect().width ?? clampedWidth;
       dragStateRef.current = {
         pointerId: event.pointerId,
         startX: event.clientX,
-        startWidth: renderedWidth,
-        pending: renderedWidth,
+        startWidth: clampedWidth,
+        pending: clampedWidth,
         rafId: null,
         target,
       };
