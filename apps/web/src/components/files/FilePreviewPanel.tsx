@@ -762,21 +762,27 @@ function initialExplorerOpen(): boolean {
   }
 }
 
-function getFileExplorerMaxWidth(containerWidth?: number): number {
-  if (containerWidth === undefined) return FILE_EXPLORER_DEFAULT_WIDTH;
-  return Math.max(
-    FILE_EXPLORER_MIN_WIDTH,
-    Math.min(
+function getFileExplorerWidthLimits(containerWidth?: number): {
+  minWidth: number;
+  maxWidth: number;
+} {
+  if (containerWidth === undefined) {
+    return { minWidth: FILE_EXPLORER_MIN_WIDTH, maxWidth: Number.POSITIVE_INFINITY };
+  }
+  const availableWidth = Math.max(0, Math.floor(containerWidth - FILE_CONTENT_MIN_WIDTH));
+  return {
+    minWidth: Math.min(FILE_EXPLORER_MIN_WIDTH, availableWidth),
+    maxWidth: Math.min(
       Math.floor(containerWidth * FILE_EXPLORER_MAX_WIDTH_FRACTION),
-      containerWidth - FILE_CONTENT_MIN_WIDTH,
+      availableWidth,
     ),
-  );
+  };
 }
 
-function useFileExplorerMaxWidth(
+function useFileExplorerWidthLimits(
   containerRef: React.RefObject<HTMLDivElement | null>,
   enabled: boolean,
-): number {
+): { minWidth: number; maxWidth: number } {
   const [containerWidth, setContainerWidth] = useState<number | undefined>(undefined);
   useLayoutEffect(() => {
     if (!enabled) return;
@@ -789,7 +795,7 @@ function useFileExplorerMaxWidth(
     observer.observe(container);
     return () => observer.disconnect();
   }, [containerRef, enabled]);
-  return getFileExplorerMaxWidth(containerWidth);
+  return getFileExplorerWidthLimits(containerWidth);
 }
 
 export default function FilePreviewPanel({
@@ -835,7 +841,7 @@ export default function FilePreviewPanel({
   );
   const breadcrumbRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const explorerMaxWidth = useFileExplorerMaxWidth(
+  const explorerWidthLimits = useFileExplorerWidthLimits(
     contentRef,
     explorerOpen && relativePath !== null,
   );
@@ -846,8 +852,8 @@ export default function FilePreviewPanel({
   } = useResizableWidth({
     storageKey: FILE_EXPLORER_WIDTH_STORAGE_KEY,
     defaultWidth: FILE_EXPLORER_DEFAULT_WIDTH,
-    minWidth: FILE_EXPLORER_MIN_WIDTH,
-    maxWidth: explorerMaxWidth,
+    minWidth: explorerWidthLimits.minWidth,
+    maxWidth: explorerWidthLimits.maxWidth,
     edge: "left",
   });
   const isMarkdown = relativePath ? isMarkdownPreviewFile(relativePath) : false;
