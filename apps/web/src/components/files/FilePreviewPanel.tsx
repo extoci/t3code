@@ -771,10 +771,10 @@ function getFileExplorerWidthLimits(containerWidth?: number): {
   }
   const availableWidth = Math.max(0, Math.floor(containerWidth - FILE_CONTENT_MIN_WIDTH));
   return {
-    minWidth: Math.min(FILE_EXPLORER_MIN_WIDTH, availableWidth),
-    maxWidth: Math.min(
-      Math.floor(containerWidth * FILE_EXPLORER_MAX_WIDTH_FRACTION),
-      availableWidth,
+    minWidth: FILE_EXPLORER_MIN_WIDTH,
+    maxWidth: Math.max(
+      FILE_EXPLORER_MIN_WIDTH,
+      Math.min(Math.floor(containerWidth * FILE_EXPLORER_MAX_WIDTH_FRACTION), availableWidth),
     ),
   };
 }
