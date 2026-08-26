@@ -46,6 +46,7 @@ const itemPathOf = (node: unknown): string | null => {
  */
 export function createFileTreeDragMentionController(
   host: FileTreeDragMentionHost,
+  mentionCwd?: string,
 ): FileTreeDragMentionController {
   let selection: ReadonlyArray<string> = [];
   let draggedPaths: ReadonlyArray<string> = [];
@@ -74,7 +75,7 @@ export function createFileTreeDragMentionController(
       // part of the current selection drags the whole selection.
       const dragged = selection.includes(itemPath) ? selection : [itemPath];
       const mentions = dragged
-        .map((path) => composerMentionFromTreePath(path))
+        .map((path) => composerMentionFromTreePath(path, mentionCwd))
         .filter((mention): mention is string => mention !== null);
       if (mentions.length === 0) {
         return;

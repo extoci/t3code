@@ -4,7 +4,6 @@ import type {
 } from "@pierre/trees";
 import type { EnvironmentId, ProjectEntry } from "@t3tools/contracts";
 import { FileTree, useFileTree, useFileTreeSearch } from "@pierre/trees/react";
-import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
 import { RotateCw } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
 
@@ -18,6 +17,7 @@ import { useTheme } from "~/hooks/useTheme";
 import { cn } from "~/lib/utils";
 import { readLocalApi } from "~/localApi";
 import { T3_PIERRE_ICONS } from "~/pierre-icons";
+import { composerMentionFromTreePath } from "~/components/chat/composerMentionDrag";
 
 import { createFileTreeDragMentionController } from "./fileTreeDragMention";
 import { useProjectEntriesQuery } from "./projectFilesQueryState";
@@ -26,6 +26,8 @@ interface FileBrowserPanelProps {
   environmentId: EnvironmentId;
   cwd: string;
   projectName: string;
+  /** Resolve tree-relative composer mentions against this file root. */
+  composerMentionCwd?: string | undefined;
   /** File currently open in the preview pane; revealed and selected in the tree. */
   selectedPath: string | null;
   /** Bumped when the same path should be revealed again (e.g. re-opened from search). */
@@ -103,6 +105,7 @@ export default function FileBrowserPanel({
   environmentId,
   cwd,
   projectName,
+  composerMentionCwd,
   selectedPath,
   selectedPathRevealId,
   onOpenFile,
@@ -145,7 +148,11 @@ export default function FileBrowserPanel({
       return;
     }
     const relativePath = item.path.replace(/\/$/, "");
-    const mention = serializeComposerFileLink(relativePath);
+    const mention = composerMentionFromTreePath(relativePath, composerMentionCwd);
+    if (mention === null) {
+      context.close();
+      return;
+    }
     const pointer = contextMenuPointerRef.current;
     const pointerIsFresh = pointer !== null && performance.now() - pointer.at < 1000;
     const anchorRect = context.anchorElement.getBoundingClientRect();
@@ -204,10 +211,13 @@ export default function FileBrowserPanel({
   const treeModelRef = useRef<ReturnType<typeof useFileTree>["model"] | null>(null);
   const dragMention = useMemo(
     () =>
-      createFileTreeDragMentionController({
-        deselect: (path) => treeModelRef.current?.getItem(path)?.deselect(),
-      }),
-    [],
+      createFileTreeDragMentionController(
+        {
+          deselect: (path) => treeModelRef.current?.getItem(path)?.deselect(),
+        },
+        composerMentionCwd,
+      ),
+    [composerMentionCwd],
   );
   const { model } = useFileTree({
     composition: {

@@ -1,5 +1,7 @@
 import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
 
+import { resolvePathLinkTarget } from "~/terminal-links";
+
 /**
  * Drag payload type carrying a serialized composer mention. Set on drags that
  * start in the workspace file tree so the composer can tell them apart from
@@ -7,12 +9,12 @@ import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
  */
 export const COMPOSER_MENTION_DRAG_TYPE = "application/x-t3code-composer-mention";
 
-export function composerMentionFromTreePath(treePath: string): string | null {
+export function composerMentionFromTreePath(treePath: string, cwd?: string): string | null {
   const relativePath = treePath.replace(/\/+$/, "");
   if (relativePath.length === 0) {
     return null;
   }
-  return serializeComposerFileLink(relativePath);
+  return serializeComposerFileLink(cwd ? resolvePathLinkTarget(relativePath, cwd) : relativePath);
 }
 
 export function dataTransferHasComposerMention(types: ReadonlyArray<string>): boolean {

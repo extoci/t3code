@@ -50,6 +50,12 @@ describe("composerMentionFromTreePath", () => {
     );
   });
 
+  it("resolves mentions from a rooted file tree", () => {
+    expect(composerMentionFromTreePath("references/setup.md", "/skills/deploy")).toBe(
+      "[setup.md](/skills/deploy/references/setup.md)",
+    );
+  });
+
   it("rejects drags that carry no path", () => {
     expect(composerMentionFromTreePath("")).toBeNull();
     expect(composerMentionFromTreePath("/")).toBeNull();
