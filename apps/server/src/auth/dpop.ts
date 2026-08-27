@@ -18,9 +18,7 @@ import {
 } from "./EnvironmentAuth.ts";
 import * as ServerSecretStore from "./ServerSecretStore.ts";
 
-export const mapDpopFailureReason = (
-  code: DpopVerificationFailureCodeType,
-): DpopFailureReason => {
+export const mapDpopFailureReason = (code: DpopVerificationFailureCodeType): DpopFailureReason => {
   switch (code) {
     case "time_window":
       return "time_window";

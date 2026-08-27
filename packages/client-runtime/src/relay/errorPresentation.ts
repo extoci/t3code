@@ -6,11 +6,9 @@ import type { RelayProtectedError } from "@t3tools/contracts/relay";
  * servers do not report why they rejected a proof, so this hint is also the
  * compatibility fallback for those responses.
  */
-export const DPOP_CLOCK_HINT =
-  "Hint: Check the date and time on both devices, then try again.";
+export const DPOP_CLOCK_HINT = "Hint: Check the date and time on both devices, then try again.";
 
-export const DPOP_RETRY_HINT =
-  "Hint: Try again. If the problem continues, copy the trace ID.";
+export const DPOP_RETRY_HINT = "Hint: Try again. If the problem continues, copy the trace ID.";
 
 export function dpopFailureHint(reason: DpopFailureReason | undefined): string {
   return reason === undefined || reason === "time_window" ? DPOP_CLOCK_HINT : DPOP_RETRY_HINT;

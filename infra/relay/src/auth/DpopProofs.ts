@@ -52,11 +52,7 @@ export class DpopProofReplay extends Context.Service<
       readonly expectedThumbprint?: string;
       readonly expectedAccessToken?: string;
       readonly now: DateTime.DateTime;
-    }) =>
-      Effect.Effect<
-        string,
-        DpopProofRejected | DpopProofReplayPersistenceError
-      >;
+    }) => Effect.Effect<string, DpopProofRejected | DpopProofReplayPersistenceError>;
     readonly consume: (input: {
       readonly thumbprint: string;
       readonly jti: string;
