@@ -207,7 +207,17 @@ function ComposerBannerStackAlert({
     >
       {item.icon}
       <AlertTitle>{item.title}</AlertTitle>
-      {item.description ? <AlertDescription>{item.description}</AlertDescription> : null}
+      {item.description ? (
+        <AlertDescription
+          className={
+            typeof item.description === "string" && item.description.includes("\n")
+              ? "whitespace-pre-line break-words"
+              : undefined
+          }
+        >
+          {item.description}
+        </AlertDescription>
+      ) : null}
       {item.actions || item.onDismiss ? (
         <AlertAction
           className={cn(
