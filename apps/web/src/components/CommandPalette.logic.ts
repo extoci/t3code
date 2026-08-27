@@ -1,6 +1,7 @@
 import {
   type FilesystemBrowseEntry,
   type KeybindingCommand,
+  type PullRequestDetail,
   THREAD_JUMP_KEYBINDING_COMMANDS,
 } from "@t3tools/contracts";
 import { filterFilesystemBrowseEntries } from "@t3tools/client-runtime/state/filesystem";
@@ -442,6 +443,52 @@ export function buildRootGroups(input: {
     });
   }
   return groups;
+}
+
+/**
+ * Builds the exact pull request lookup surface. The query is added to each item's search terms so
+ * the normal command filtering keeps the lookup visible while the user pastes a full URL.
+ */
+export function buildPullRequestLookupGroups(input: {
+  query: string;
+  threadItems: ReadonlyArray<CommandPaletteActionItem>;
+  pullRequestItem?: CommandPaletteActionItem;
+}): CommandPaletteGroup[] {
+  const groups: CommandPaletteGroup[] = [];
+  const withQuery = (item: CommandPaletteActionItem): CommandPaletteActionItem => ({
+    ...item,
+    searchTerms: [input.query, ...item.searchTerms],
+  });
+
+  if (input.threadItems.length > 0) {
+    groups.push({
+      value: "pull-request-threads",
+      label: "Matching Threads",
+      items: input.threadItems.map(withQuery),
+    });
+  }
+  if (input.pullRequestItem) {
+    groups.push({
+      value: "pull-request",
+      label: "Pull Request",
+      items: [withQuery(input.pullRequestItem)],
+    });
+  }
+
+  return groups;
+}
+
+/** Matches the PR detected from a thread's checked-out branch, scoped to its project and server. */
+export function matchesBranchPullRequestThread(input: {
+  thread: Pick<SidebarThreadSummary, "environmentId" | "projectId" | "branch">;
+  pullRequestEnvironmentId: SidebarThreadSummary["environmentId"];
+  pullRequest: Pick<PullRequestDetail, "projectId" | "headBranch">;
+}): boolean {
+  return (
+    input.thread.environmentId === input.pullRequestEnvironmentId &&
+    input.thread.projectId === input.pullRequest.projectId &&
+    input.thread.branch === input.pullRequest.headBranch
+  );
 }
 
 export function getCommandPaletteInputPlaceholder(mode: CommandPaletteMode): string {

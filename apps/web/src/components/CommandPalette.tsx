@@ -40,6 +40,7 @@ import {
   FileSearchIcon,
   FolderIcon,
   FolderPlusIcon,
+  GitPullRequestIcon,
   LinkIcon,
   MessageSquareIcon,
   PaletteIcon,
@@ -76,7 +77,8 @@ import { sourceControlEnvironment } from "../state/sourceControl";
 import { useAtomCommand } from "../state/use-atom-command";
 import { useAtomQueryRunner } from "../state/use-atom-query-runner";
 import { useEnvironments, usePrimaryEnvironmentId } from "../state/environments";
-import { useProjects, useThreadShells } from "../state/entities";
+import { useProjects, useServerConfigs, useThreadShells } from "../state/entities";
+import { linkedPullRequestDetailAtom } from "../state/pullRequests";
 import { useThreadSearch } from "../state/queries";
 import { resolveThreadActionProjectRef, startNewThreadFromContext } from "../lib/chatThreadActions";
 import {
@@ -93,6 +95,11 @@ import {
 import { onOpenCommandPalette } from "../commandPaletteBus";
 import { isPreviewFocused } from "../lib/previewFocus";
 import { isTerminalFocused } from "../lib/terminalFocus";
+import {
+  findProjectForChangeRequest,
+  matchesLinkedPullRequestUrl,
+  parseChangeRequestUrl,
+} from "../lib/openPullRequestLink";
 import { selectActiveRightPanel, useRightPanelStore } from "../rightPanelStore";
 import { getLatestThreadForProject, sortThreads } from "../lib/threadSort";
 import {
@@ -115,6 +122,7 @@ import {
   browseInputEndPaddingClass,
   buildBrowseGroups,
   buildProjectActionItems,
+  buildPullRequestLookupGroups,
   buildRootGroups,
   buildThreadActionItems,
   enumerateCommandPaletteItems,
@@ -126,6 +134,7 @@ import {
   filterPinnedBrowseEntries,
   getCommandPaletteInputPlaceholder,
   getCommandPaletteMode,
+  matchesBranchPullRequestThread,
   ITEM_ICON_CLASS,
   RECENT_THREAD_LIMIT,
   reduceCommandPaletteUiState,
@@ -590,6 +599,7 @@ function OpenCommandPaletteDialog(props: {
   const projects = useProjects();
   const projectOrder = useUiStateStore((store) => store.projectOrder);
   const threads = useThreadShells();
+  const serverConfigs = useServerConfigs();
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const { theme, themeHalves, resolvedTheme } = useTheme();
   const providers = useAtomValue(primaryServerProvidersAtom);
@@ -614,7 +624,13 @@ function OpenCommandPaletteDialog(props: {
         .map((environment) => environment.environmentId),
     [environments],
   );
-  const threadSearchQuery = currentView === null && !isActionsOnly ? deferredQuery : "";
+  const pastedPullRequest = useMemo(
+    () => parseChangeRequestUrl(deferredQuery.trim()),
+    [deferredQuery],
+  );
+  const isPullRequestLookup = pastedPullRequest !== null;
+  const threadSearchQuery =
+    currentView === null && !isActionsOnly && !isPullRequestLookup ? deferredQuery : "";
   const threadSearch = useThreadSearch(environmentIds, threadSearchQuery);
   const threadContentMatchByKey = useMemo(
     () =>
@@ -875,6 +891,36 @@ function OpenCommandPaletteDialog(props: {
   const projectTitleById = useMemo(
     () => new Map<ProjectId, string>(projects.map((project) => [project.id, project.title])),
     [projects],
+  );
+  const pullRequestProject = useMemo(() => {
+    if (pastedPullRequest === null) {
+      return undefined;
+    }
+
+    const pullRequestProjects = projects
+      .filter(
+        (project) =>
+          serverConfigs.get(project.environmentId)?.environment.capabilities.pullRequests === true,
+      )
+      .toSorted(
+        (left, right) =>
+          Number(right.environmentId === primaryEnvironmentId) -
+          Number(left.environmentId === primaryEnvironmentId),
+      );
+    return findProjectForChangeRequest(pullRequestProjects, pastedPullRequest);
+  }, [pastedPullRequest, primaryEnvironmentId, projects, serverConfigs]);
+  const pullRequestDetailQuery = useEnvironmentQuery(
+    pastedPullRequest !== null && pullRequestProject !== undefined
+      ? linkedPullRequestDetailAtom({
+          environmentId: pullRequestProject.environmentId,
+          input: {
+            projectId: pullRequestProject.id,
+            repository:
+              pullRequestProject.repositoryIdentity?.displayName ?? pastedPullRequest.repository,
+            number: pastedPullRequest.number,
+          },
+        })
+      : null,
   );
 
   const activeThreadId = activeThread?.id;
@@ -1148,6 +1194,84 @@ function OpenCommandPaletteDialog(props: {
       threadSearchQuery,
       threads,
     ],
+  );
+  const pullRequestThreadItems = useMemo(() => {
+    if (pastedPullRequest === null) {
+      return [];
+    }
+
+    const pullRequestDetail = pullRequestDetailQuery.data;
+    const matchingThreadIds = new Set(
+      threads.flatMap((thread) =>
+        (thread.linkedPullRequest !== undefined &&
+          thread.linkedPullRequest !== null &&
+          matchesLinkedPullRequestUrl(thread.linkedPullRequest, deferredQuery)) ||
+        (pullRequestProject !== undefined &&
+          pullRequestDetail !== null &&
+          matchesBranchPullRequestThread({
+            thread,
+            pullRequestEnvironmentId: pullRequestProject.environmentId,
+            pullRequest: pullRequestDetail,
+          }))
+          ? [String(thread.id)]
+          : [],
+      ),
+    );
+    return allThreadItems.filter((item) =>
+      matchingThreadIds.has(item.value.slice("thread:".length)),
+    );
+  }, [
+    allThreadItems,
+    deferredQuery,
+    pastedPullRequest,
+    pullRequestDetailQuery.data,
+    pullRequestProject,
+    threads,
+  ]);
+  const pullRequestItem = useMemo<CommandPaletteActionItem | undefined>(() => {
+    if (pastedPullRequest === null || pullRequestProject === undefined) {
+      return undefined;
+    }
+
+    return {
+      kind: "action",
+      value: `pull-request:${pastedPullRequest.host}:${pastedPullRequest.repository}:${pastedPullRequest.number}`,
+      searchTerms: [
+        "open pull request",
+        "pull request",
+        "pr",
+        pastedPullRequest.repository,
+        `#${pastedPullRequest.number}`,
+      ],
+      title: "Open in Pull Requests",
+      description: `${pastedPullRequest.repository} #${pastedPullRequest.number}`,
+      icon: <GitPullRequestIcon className={ITEM_ICON_CLASS} />,
+      run: async () => {
+        await navigate({
+          to: "/pull-requests",
+          search: {
+            involvement: "all",
+            state: "all",
+            host: pastedPullRequest.host,
+            repository: pastedPullRequest.repository,
+            number: pastedPullRequest.number,
+            selectedProjectId: pullRequestProject.id,
+            selectedEnvironmentId: pullRequestProject.environmentId,
+          },
+        });
+      },
+    };
+  }, [navigate, pastedPullRequest, pullRequestProject]);
+  const pullRequestLookupGroups = useMemo(
+    () =>
+      pastedPullRequest === null
+        ? null
+        : buildPullRequestLookupGroups({
+            query: deferredQuery,
+            threadItems: pullRequestThreadItems,
+            ...(pullRequestItem ? { pullRequestItem } : {}),
+          }),
+    [deferredQuery, pastedPullRequest, pullRequestItem, pullRequestThreadItems],
   );
   const recentThreadItems = allThreadItems.slice(0, RECENT_THREAD_LIMIT);
 
@@ -1662,9 +1786,13 @@ function OpenCommandPaletteDialog(props: {
           buildAddProjectRemoteSourceReadiness(sourceControlDiscovery.data),
         )
       : (currentView?.groups ?? rootGroups);
+  const visibleActiveGroups =
+    pullRequestLookupGroups !== null && currentView === null && !isActionsOnly
+      ? pullRequestLookupGroups
+      : activeGroups;
 
   const filteredGroups = filterCommandPaletteGroups({
-    activeGroups,
+    activeGroups: visibleActiveGroups,
     query: deferredQuery,
     isInSubmenu: currentView !== null,
     projectSearchItems: projectSearchItems,
@@ -2506,13 +2634,16 @@ function OpenCommandPaletteDialog(props: {
             ? { emptyStateMessage: "Choose a destination path and press Enter to clone." }
             : relativePathNeedsActiveProject
               ? { emptyStateMessage: "Relative paths require an active project." }
-              : willCreateProjectPath
-                ? {
-                    emptyStateMessage: "Press Enter to create this folder and add it as a project.",
-                  }
-                : threadSearch.isPending
-                  ? { emptyStateMessage: "Searching thread messages…" }
-                  : {})}
+              : pullRequestLookupGroups !== null
+                ? { emptyStateMessage: "No linked thread or project found for this pull request." }
+                : willCreateProjectPath
+                  ? {
+                      emptyStateMessage:
+                        "Press Enter to create this folder and add it as a project.",
+                    }
+                  : threadSearch.isPending
+                    ? { emptyStateMessage: "Searching thread messages…" }
+                    : {})}
       />
     </CommandPaletteContent>
   );

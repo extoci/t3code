@@ -4,10 +4,12 @@ import type { Thread } from "../types";
 import {
   browseInputEndPaddingClass,
   buildBrowseGroups,
+  buildPullRequestLookupGroups,
   buildThreadActionItems,
   enumerateCommandPaletteItems,
   filterPinnedBrowseEntries,
   filterCommandPaletteGroups,
+  matchesBranchPullRequestThread,
   reduceCommandPaletteUiState,
   type CommandPaletteGroup,
 } from "./CommandPalette.logic";
@@ -332,6 +334,64 @@ describe("buildThreadActionItems", () => {
     });
 
     expect(items.map((item) => item.value)).toEqual(["thread:thread-active"]);
+  });
+});
+
+describe("buildPullRequestLookupGroups", () => {
+  const query = "https://github.com/t3tools/t3code/pull/42";
+  const threadItem = {
+    kind: "action" as const,
+    value: "thread:thread-1",
+    searchTerms: ["Fix the sidebar"],
+    title: "Fix the sidebar",
+    icon: null,
+    run: async () => undefined,
+  };
+  const pullRequestItem = {
+    kind: "action" as const,
+    value: "pull-request:github.com:t3tools/t3code:42",
+    searchTerms: ["Open in Pull Requests"],
+    title: "Open in Pull Requests",
+    icon: null,
+    run: async () => undefined,
+  };
+
+  it("puts matching threads before the pull request fallback", () => {
+    const groups = buildPullRequestLookupGroups({
+      query,
+      threadItems: [threadItem],
+      pullRequestItem,
+    });
+
+    expect(groups.map((group) => group.label)).toEqual(["Matching Threads", "Pull Request"]);
+    expect(groups[0]?.items[0]?.value).toBe(threadItem.value);
+    expect(groups[1]?.items[0]?.value).toBe(pullRequestItem.value);
+  });
+
+  it("makes the pasted URL searchable without changing the displayed item metadata", () => {
+    const [threadGroup] = buildPullRequestLookupGroups({ query, threadItems: [threadItem] });
+
+    expect(threadGroup?.items[0]?.searchTerms).toEqual([query, "Fix the sidebar"]);
+    expect(threadGroup?.items[0]?.title).toBe(threadItem.title);
+  });
+});
+
+describe("matchesBranchPullRequestThread", () => {
+  it("finds a thread whose branch is the pull request head branch", () => {
+    expect(
+      matchesBranchPullRequestThread({
+        thread: {
+          environmentId: EnvironmentId.make("environment-1"),
+          projectId: PROJECT_ID,
+          branch: "t3code/fix-file-tree-resize",
+        },
+        pullRequestEnvironmentId: EnvironmentId.make("environment-1"),
+        pullRequest: {
+          projectId: PROJECT_ID,
+          headBranch: "t3code/fix-file-tree-resize",
+        },
+      }),
+    ).toBe(true);
   });
 });
 
