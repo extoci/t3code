@@ -180,11 +180,16 @@ function EnvironmentUnavailableRow({
       ? "Checking what this session is allowed to change."
       : `Waiting for ${environment.label}'s configuration.`
     : connectionStatusText(environment.connection);
+  const renderedDescription = description.includes("\n") ? (
+    <span className="whitespace-pre-line break-words">{description}</span>
+  ) : (
+    description
+  );
   // No spinner: this state can persist indefinitely for a wedged device, and a
   // continuously repainting animation would run the whole time.
   return (
     <SettingsSection title="Providers">
-      <SettingsRow title={title} description={description} />
+      <SettingsRow title={title} description={renderedDescription} />
     </SettingsSection>
   );
 }
