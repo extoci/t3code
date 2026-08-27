@@ -18,6 +18,7 @@ import { AsyncResult, Atom, AtomRegistry } from "effect/unstable/reactivity";
 
 import { findErrorTraceId } from "../errors/errorTrace.ts";
 import * as ManagedRelay from "./managedRelay.ts";
+import { relayProtectedErrorMessage } from "./errorPresentation.ts";
 
 const DEFAULT_STALE_TIME_MS = 15_000;
 const DEFAULT_IDLE_TTL_MS = 5 * 60_000;
@@ -315,7 +316,12 @@ export function readManagedRelaySnapshotState<A>(
   let errorTraceId: string | null = null;
   if (result._tag === "Failure") {
     const cause = Cause.squash(result.cause);
-    error = cause instanceof Error ? cause.message : "Could not load T3 Connect data.";
+    error =
+      cause instanceof ManagedRelay.ManagedRelayRequestFailedError && cause.relayError
+        ? relayProtectedErrorMessage(cause.relayError)
+        : cause instanceof Error
+          ? cause.message
+          : "Could not load T3 Connect data.";
     errorTraceId = findErrorTraceId(cause);
   }
   return {

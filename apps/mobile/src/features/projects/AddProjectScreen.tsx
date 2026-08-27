@@ -160,6 +160,7 @@ function ListRow(props: {
   readonly onPress?: () => void;
 }) {
   const chevronColor = useThemeColor("--color-chevron");
+  const subtitleHasHint = props.subtitle?.includes("\n") ?? false;
 
   return (
     <Pressable
@@ -184,7 +185,10 @@ function ListRow(props: {
         <View className="flex-1 gap-0.5">
           <Text className="text-base leading-snug font-t3-bold">{props.title}</Text>
           {props.subtitle ? (
-            <Text className="text-sm leading-snug text-foreground-muted" numberOfLines={2}>
+            <Text
+              className="text-sm leading-snug text-foreground-muted"
+              numberOfLines={subtitleHasHint ? undefined : 2}
+            >
               {props.subtitle}
             </Text>
           ) : null}

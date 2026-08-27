@@ -233,6 +233,7 @@ export function ProviderSettingsPanel() {
                 const Icon = providerEnvironmentIcon(environment);
                 const selected = environment.environmentId === effectiveEnvironmentId;
                 const statusText = connectionStatusText(environment.connection);
+                const statusHasHint = statusText.includes("\n");
                 return (
                   <button
                     key={environment.environmentId}
@@ -260,7 +261,12 @@ export function ProviderSettingsPanel() {
                           {environment.label}
                         </span>
                       </span>
-                      <span className="block truncate pl-[18px] text-xs text-muted-foreground">
+                      <span
+                        className={cn(
+                          "block pl-[18px] text-xs text-muted-foreground",
+                          statusHasHint ? "whitespace-pre-line break-words" : "truncate",
+                        )}
+                      >
                         {providerEnvironmentDetail(environment)} · {statusText}
                       </span>
                     </span>

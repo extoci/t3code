@@ -286,6 +286,7 @@ function CloudEnvironmentRowShell(props: {
       error: props.connectionError,
       traceId: props.connectionErrorTraceId,
     });
+  const statusHasHint = statusText.includes("\n");
   const statusClassName = props.connectionError
     ? "text-rose-500 dark:text-rose-400"
     : "text-foreground-muted";
@@ -350,7 +351,7 @@ function CloudEnvironmentRowShell(props: {
         >
           <Text
             className={cn("min-w-0 flex-1 text-xs", statusClassName)}
-            numberOfLines={isErrorExpanded ? undefined : 1}
+            numberOfLines={isErrorExpanded || statusHasHint ? undefined : 1}
           >
             {statusText}
             {errorTraceId ? (

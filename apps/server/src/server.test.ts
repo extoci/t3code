@@ -10,6 +10,7 @@ import {
   AuthTokenExchangeGrantType,
   CommandId,
   DEFAULT_SERVER_SETTINGS,
+  type DpopFailureReason,
   EnvironmentId,
   EventId,
   GitCommandError,
@@ -1115,6 +1116,7 @@ const exchangeAccessToken = (
       readonly _tag?: string;
       readonly code?: string;
       readonly reason?: string;
+      readonly dpopFailureReason?: DpopFailureReason;
       readonly traceId?: string;
     }>(response);
     return {
@@ -1846,6 +1848,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
       assert.equal(replayBootstrap.body._tag, "EnvironmentAuthInvalidError");
       assert.equal(replayBootstrap.body.code, "auth_invalid");
       assert.equal(replayBootstrap.body.reason, "invalid_credential");
+      assert.equal(replayBootstrap.body.dpopFailureReason, "replay");
       assert.equal(typeof replayBootstrap.body.traceId, "string");
     }).pipe(Effect.provide(NodeHttpServer.layerTest)),
   );
@@ -1921,6 +1924,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
       assert.equal(bootstrap.body._tag, "EnvironmentAuthInvalidError");
       assert.equal(bootstrap.body.code, "auth_invalid");
       assert.equal(bootstrap.body.reason, "invalid_credential");
+      assert.equal(bootstrap.body.dpopFailureReason, "request_mismatch");
       assert.equal(typeof bootstrap.body.traceId, "string");
     }).pipe(Effect.provide(NodeHttpServer.layerTest)),
   );

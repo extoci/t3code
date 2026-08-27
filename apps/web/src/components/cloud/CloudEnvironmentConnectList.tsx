@@ -156,7 +156,9 @@ export function CloudEnvironmentConnectRows({
           <p className="text-sm font-medium text-destructive">
             Could not load T3 Connect environments
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">{discoveryProblem}</p>
+          <p className="mt-1 whitespace-pre-line break-words text-xs text-muted-foreground">
+            {discoveryProblem}
+          </p>
           <Button
             size="sm"
             variant="outline"
@@ -200,6 +202,7 @@ export function CloudEnvironmentConnectRows({
           : availability === "checking"
             ? "Available · Checking relay status…"
             : (Option.getOrNull(error)?.message ?? "Available · Relay status unavailable");
+    const statusHasHint = statusText.includes("\n");
     return (
       <div key={environment.environmentId} className={ITEM_ROW_CLASSNAME}>
         <div className={ITEM_ROW_INNER_CLASSNAME}>
@@ -229,7 +232,8 @@ export function CloudEnvironmentConnectRows({
             </div>
             <p
               className={cn(
-                "mt-1 truncate text-xs",
+                "mt-1 text-xs",
+                statusHasHint ? "whitespace-pre-line break-words" : "truncate",
                 savedConnection?.tone === "error" ||
                   (savedConnection?.tone === "connecting" && savedEnvironment?.connection.error) ||
                   (savedConnection === null && availability === "error")
