@@ -77,6 +77,7 @@ const isEnvironmentCloudApiError = Schema.is(
     EnvironmentCloudEndpointUnavailableError,
   ]),
 );
+const isEnvironmentAuthInvalidError = Schema.is(EnvironmentAuthInvalidError);
 
 const MANAGED_ENDPOINT_PROVIDER_KIND =
   "cloudflare_tunnel" satisfies RelayManagedEndpointProviderKind;
@@ -151,7 +152,7 @@ function findEnvironmentCloudApiError(cause: unknown): { readonly message: strin
 }
 
 function findEnvironmentAuthInvalidError(cause: unknown): EnvironmentAuthInvalidError | null {
-  if (Schema.is(EnvironmentAuthInvalidError)(cause)) {
+  if (isEnvironmentAuthInvalidError(cause)) {
     return cause;
   }
   if (typeof cause !== "object" || cause === null) {

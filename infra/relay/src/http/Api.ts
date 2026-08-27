@@ -1000,6 +1000,7 @@ class ClerkTokenVerificationFailed extends Schema.TaggedErrorClass<ClerkTokenVer
 }
 
 const isHttpUnauthorized = Schema.is(HttpApiError.Unauthorized);
+const isDpopProofRejected = Schema.is(DpopProofs.DpopProofRejected);
 
 const currentTraceId = Effect.currentParentSpan.pipe(
   Effect.map((span) => span.traceId),
@@ -1073,7 +1074,7 @@ function relayInternalErrorResponse(reason: RelayInternalError["reason"]) {
 function mapRelayCommonApiErrors(authReason: RelayAuthInvalidReason) {
   const mapError = Effect.fnUntraced(function* <E>(error: E) {
     const traceId = yield* currentTraceId;
-    if (Schema.is(DpopProofs.DpopProofRejected)(error)) {
+    if (isDpopProofRejected(error)) {
       yield* Effect.annotateCurrentSpan({
         "relay.dpop.failure_code": error.code,
       });
