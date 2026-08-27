@@ -298,7 +298,7 @@ function CloudEnvironmentRowShell(props: {
   const measuredErrorText = errorTraceId ? `${statusText} Trace ID: ${errorTraceId}` : statusText;
   const errorLineCount =
     errorMeasurement?.text === measuredErrorText ? errorMeasurement.lineCount : 0;
-  const errorCanExpand = props.connectionError !== null && errorLineCount > 1;
+  const errorCanExpand = props.connectionError !== null && errorLineCount > 1 && !statusHasHint;
   const isErrorExpanded = errorCanExpand && props.errorExpanded;
   const StatusContainer = errorCanExpand ? Pressable : View;
   const onMeasuredErrorTextLayout = useCallback(
