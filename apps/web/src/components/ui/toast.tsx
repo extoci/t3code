@@ -100,6 +100,12 @@ function errorDescriptionClampClass(type: unknown, description: unknown): string
   return "line-clamp-4";
 }
 
+function toastDescriptionWhitespaceClass(description: unknown): string | undefined {
+  return typeof description === "string" && description.includes("\n")
+    ? "whitespace-pre-line"
+    : undefined;
+}
+
 /** Dismiss-only: circular control overlapping the card corner (iOS notification–style). */
 const toastCornerDismissClass = "absolute z-20 -top-1.5 -right-1.5";
 const toastCornerOrbClass = cn(
@@ -190,6 +196,7 @@ function ToastDescriptionAndExpandable({
   const descriptionTrigger = toastData?.expandableDescriptionTrigger ?? false;
   const descriptionClassName = cn(
     "min-w-0 select-text wrap-break-word text-muted-foreground",
+    toastDescriptionWhitespaceClass(toastDescription),
     errorDescriptionClampClass(toastType, toastDescription),
   );
   const [open, setOpen] = useState(false);
@@ -242,6 +249,7 @@ function ToastDescriptionAndExpandable({
             <Toast.Description
               className={cn(
                 "min-w-0 select-none wrap-break-word text-muted-foreground",
+                toastDescriptionWhitespaceClass(toastDescription),
                 errorDescriptionClampClass(toastType, toastDescription),
                 "underline-offset-2 decoration-muted-foreground/60 group-hover:underline",
               )}

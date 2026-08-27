@@ -186,7 +186,18 @@ export function SettingsRow({
               {description}
             </p>
           ) : null}
-          {status ? <div className="pt-0.5 text-xs text-muted-foreground">{status}</div> : null}
+          {status ? (
+            <div
+              className={cn(
+                "pt-0.5 text-xs text-muted-foreground",
+                typeof status === "string" && status.includes("\n")
+                  ? "whitespace-pre-line break-words"
+                  : undefined,
+              )}
+            >
+              {status}
+            </div>
+          ) : null}
         </div>
         {control ? (
           <div className="flex w-full shrink-0 items-center gap-2 sm:w-auto sm:justify-end">
