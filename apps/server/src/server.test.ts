@@ -1799,6 +1799,38 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
       }).pipe(Effect.provide(NodeHttpServer.layerTest)),
   );
 
+  it.effect("reports clock skew for a future-dated DPoP token exchange proof", () =>
+    Effect.gen(function* () {
+      yield* buildAppUnderTest();
+
+      const ownerCookie = yield* getAuthenticatedSessionCookieHeader();
+      const credentialResponse = yield* HttpClient.post("/api/auth/pairing-token", {
+        headers: { cookie: ownerCookie },
+        body: yield* HttpBody.json({}),
+      });
+      const credential = (yield* credentialResponse.json) as { readonly credential: string };
+      const tokenUrl = yield* getHttpServerUrl("/oauth/token");
+      const now = yield* DateTime.now;
+      const dpop = makeDpopProof({
+        method: "POST",
+        url: tokenUrl,
+        iat: Math.floor(now.epochMilliseconds / 1_000) + 25,
+      });
+
+      const exchange = yield* exchangeAccessToken(credential.credential, {
+        headers: { dpop: dpop.proof },
+        scope: "orchestration:read orchestration:operate terminal:operate review:write",
+      });
+
+      assert.equal(exchange.response.status, 401);
+      assert.equal(exchange.body._tag, "EnvironmentAuthInvalidError");
+      assert.equal(exchange.body.code, "auth_invalid");
+      assert.equal(exchange.body.reason, "invalid_credential");
+      assert.equal(exchange.body.dpopFailureReason, "time_window");
+      assert.equal(typeof exchange.body.traceId, "string");
+    }).pipe(Effect.provide(NodeHttpServer.layerTest)),
+  );
+
   it.effect("rejects replayed DPoP proofs across token exchanges", () =>
     Effect.gen(function* () {
       yield* buildAppUnderTest();

@@ -1,10 +1,15 @@
 import { RelayAuthInvalidError } from "@t3tools/contracts/relay";
 import { describe, expect, it } from "@effect/vitest";
 
-import { DPOP_CLOCK_HINT, relayProtectedErrorMessage } from "./errorPresentation.ts";
+import {
+  DPOP_CLOCK_HINT,
+  DPOP_RETRY_HINT,
+  DPOP_UNKNOWN_HINT,
+  relayProtectedErrorMessage,
+} from "./errorPresentation.ts";
 
 describe("relayProtectedErrorMessage", () => {
-  it("uses the clock hint when an older relay omits the DPoP failure reason", () => {
+  it("presents clock skew as one possible cause when the relay omits the reason", () => {
     const error = new RelayAuthInvalidError({
       code: "auth_invalid",
       reason: "invalid_dpop",
@@ -12,7 +17,7 @@ describe("relayProtectedErrorMessage", () => {
     });
 
     expect(relayProtectedErrorMessage(error)).toBe(
-      `Relay rejected the DPoP proof.\n\n${DPOP_CLOCK_HINT}`,
+      `Relay rejected the DPoP proof. ${DPOP_UNKNOWN_HINT}`,
     );
   });
 
@@ -36,7 +41,7 @@ describe("relayProtectedErrorMessage", () => {
     });
 
     expect(relayProtectedErrorMessage(error)).toBe(
-      "Relay rejected the DPoP proof.\n\nHint: Try again. If the problem continues, copy the trace ID.",
+      `Relay rejected the DPoP proof. ${DPOP_RETRY_HINT}`,
     );
   });
 

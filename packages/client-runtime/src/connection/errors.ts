@@ -1,7 +1,7 @@
 import type { EnvironmentId } from "@t3tools/contracts";
 import type { RelayProtectedError } from "@t3tools/contracts/relay";
 import type { ManagedRelayClientError } from "../relay/managedRelay.ts";
-import { dpopFailureHint, relayProtectedErrorMessage } from "../relay/errorPresentation.ts";
+import { dpopFailureMessage, relayProtectedErrorMessage } from "../relay/errorPresentation.ts";
 import type { RemoteEnvironmentAuthError } from "../authorization/remote.ts";
 import {
   ConnectionBlockedError,
@@ -171,9 +171,9 @@ export function mapRemoteEnvironmentError(
 /**
  * Map an environment error from a request that used DPoP authentication. An
  * older environment server reports a DPoP clock failure as the same generic
- * invalid-credential response as other DPoP failures, so keep the hint at the
- * client boundary where the request type is known. Newer servers can identify
- * non-clock failures and receive a neutral retry hint instead.
+ * invalid-credential response as other failures, so keep the compatibility
+ * hint cautious when the server omits the category. Newer servers can identify
+ * clock and non-clock proof failures precisely.
  */
 export function mapRemoteDpopEnvironmentError(
   error: RemoteEnvironmentAuthError,
@@ -181,7 +181,7 @@ export function mapRemoteDpopEnvironmentError(
   if (error._tag === "EnvironmentAuthInvalidError" && error.reason === "invalid_credential") {
     return new ConnectionBlockedError({
       reason: "authentication",
-      detail: `The environment credential is invalid.\n\n${dpopFailureHint(error.dpopFailureReason)}`,
+      detail: dpopFailureMessage("The environment credential is invalid.", error.dpopFailureReason),
       traceId: error.traceId,
     });
   }

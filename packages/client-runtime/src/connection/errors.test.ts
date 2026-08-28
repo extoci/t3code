@@ -3,11 +3,11 @@ import { RelayAuthInvalidError } from "@t3tools/contracts/relay";
 import { describe, expect, it } from "@effect/vitest";
 
 import { mapManagedRelayError, mapRemoteDpopEnvironmentError } from "./errors.ts";
-import { DPOP_CLOCK_HINT, DPOP_RETRY_HINT } from "../relay/errorPresentation.ts";
+import { DPOP_RETRY_HINT, DPOP_UNKNOWN_HINT } from "../relay/errorPresentation.ts";
 import { ManagedRelayRequestFailedError } from "../relay/managedRelay.ts";
 
 describe("mapManagedRelayError", () => {
-  it("shows the clock hint when an older relay returns a generic DPoP error", () => {
+  it("presents clock skew as one possible cause for a generic DPoP error", () => {
     const mapped = mapManagedRelayError(
       new ManagedRelayRequestFailedError({
         action: "connect relay environment",
@@ -24,7 +24,7 @@ describe("mapManagedRelayError", () => {
     expect(mapped).toMatchObject({
       _tag: "ConnectionBlockedError",
       reason: "authentication",
-      detail: `Relay rejected the DPoP proof.\n\n${DPOP_CLOCK_HINT}`,
+      detail: `Relay rejected the DPoP proof. ${DPOP_UNKNOWN_HINT}`,
       traceId: "trace-1",
     });
   });
@@ -43,12 +43,12 @@ describe("mapManagedRelayError", () => {
       }),
     );
 
-    expect(mapped.message).toBe(`Relay rejected the DPoP proof.\n\n${DPOP_RETRY_HINT}`);
+    expect(mapped.message).toBe(`Relay rejected the DPoP proof. ${DPOP_RETRY_HINT}`);
   });
 });
 
 describe("mapRemoteDpopEnvironmentError", () => {
-  it("uses the clock hint when an older environment server returns a generic auth error", () => {
+  it("does not present a generic environment auth error as confirmed clock skew", () => {
     const mapped = mapRemoteDpopEnvironmentError(
       new EnvironmentAuthInvalidError({
         code: "auth_invalid",
@@ -57,7 +57,7 @@ describe("mapRemoteDpopEnvironmentError", () => {
       }),
     );
 
-    expect(mapped.message).toBe(`The environment credential is invalid.\n\n${DPOP_CLOCK_HINT}`);
+    expect(mapped.message).toBe(`The environment credential is invalid. ${DPOP_UNKNOWN_HINT}`);
   });
 
   it("uses a neutral hint for a non-clock DPoP error from a new server", () => {
@@ -70,6 +70,6 @@ describe("mapRemoteDpopEnvironmentError", () => {
       }),
     );
 
-    expect(mapped.message).toBe(`The environment credential is invalid.\n\n${DPOP_RETRY_HINT}`);
+    expect(mapped.message).toBe(`The environment credential is invalid. ${DPOP_RETRY_HINT}`);
   });
 });

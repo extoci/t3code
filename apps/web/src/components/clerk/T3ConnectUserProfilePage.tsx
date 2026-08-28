@@ -216,9 +216,7 @@ export function T3ConnectUserProfilePage() {
             <p className="font-medium text-destructive-foreground">
               Could not load T3 Connect environments
             </p>
-            <p className="mt-1 whitespace-pre-line break-words text-xs text-muted-foreground">
-              {environmentsState.error}
-            </p>
+            <p className="mt-1 text-xs text-muted-foreground">{environmentsState.error}</p>
           </div>
         ) : null}
 

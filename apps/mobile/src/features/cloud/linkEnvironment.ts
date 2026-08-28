@@ -26,7 +26,7 @@ import { exchangeRemoteDpopAccessToken } from "@t3tools/client-runtime/authoriza
 import { fetchRemoteEnvironmentDescriptor } from "@t3tools/client-runtime/environment";
 import { findErrorTraceId } from "@t3tools/client-runtime/errors";
 import {
-  dpopFailureHint,
+  dpopFailureMessage,
   ManagedRelay,
   relayProtectedErrorMessage,
 } from "@t3tools/client-runtime/relay";
@@ -93,7 +93,7 @@ function cloudEnvironmentLinkError(message: string, options?: { readonly dpop?: 
     return new CloudEnvironmentLinkError({
       message:
         dpopAuthError?.reason === "invalid_credential"
-          ? `${detail}\n\n${dpopFailureHint(dpopAuthError.dpopFailureReason)}`
+          ? dpopFailureMessage(detail, dpopAuthError.dpopFailureReason)
           : detail,
       cause,
       ...(traceId === null ? {} : { traceId }),

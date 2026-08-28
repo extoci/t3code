@@ -13,6 +13,7 @@ import * as Stream from "effect/Stream";
 import { Atom, AtomRegistry } from "effect/unstable/reactivity";
 import { afterEach, vi } from "vite-plus/test";
 
+import { DPOP_UNKNOWN_HINT } from "./errorPresentation.ts";
 import * as ManagedRelay from "./managedRelay.ts";
 import {
   createManagedRelayQueryManager,
@@ -423,7 +424,7 @@ describe("createManagedRelayQueryManager", () => {
     });
   });
 
-  it("shows the DPoP clock hint for snapshot requests from older relays", async () => {
+  it("presents clock skew as one possible cause for snapshot requests from older relays", async () => {
     const manager = createManager({
       getEnvironmentStatus: () =>
         Effect.fail(
@@ -445,7 +446,7 @@ describe("createManagedRelayQueryManager", () => {
     registry.get(atom);
     await vi.waitFor(() => {
       expect(readManagedRelaySnapshotState(registry.get(atom)).error).toBe(
-        "Relay rejected the DPoP proof.\n\nHint: Check the date and time on both devices, then try again.",
+        `Relay rejected the DPoP proof. ${DPOP_UNKNOWN_HINT}`,
       );
     });
   });

@@ -43,7 +43,6 @@ export function ConnectionEnvironmentRow(props: {
   const statusLabel = connectionStatusLabel(props.environment);
   const statusTraceId = props.environment.connectionErrorTraceId;
   const hasConnectionFailure = props.environment.connectionError !== null;
-  const statusHasHint = statusLabel?.includes("\n") ?? false;
   const isRetrying =
     props.environment.connectionState === "connecting" ||
     props.environment.connectionState === "reconnecting";
@@ -88,7 +87,7 @@ export function ConnectionEnvironmentRow(props: {
                 "text-xs",
                 hasConnectionFailure ? "text-rose-500 dark:text-rose-400" : "text-foreground-muted",
               )}
-              numberOfLines={props.expanded || statusHasHint ? undefined : 1}
+              numberOfLines={props.expanded ? undefined : 1}
               selectable={props.expanded}
             >
               {statusLabel}

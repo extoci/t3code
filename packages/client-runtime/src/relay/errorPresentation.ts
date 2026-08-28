@@ -1,17 +1,24 @@
 import type { DpopFailureReason } from "@t3tools/contracts";
 import type { RelayProtectedError } from "@t3tools/contracts/relay";
 
-/**
- * A DPoP proof is checked against the clock on the receiving server. Older
- * servers do not report why they rejected a proof, so this hint is also the
- * compatibility fallback for those responses.
- */
-export const DPOP_CLOCK_HINT = "Hint: Check the date and time on both devices, then try again.";
+export const DPOP_CLOCK_HINT =
+  "Hint: Check that automatic date and time is enabled on both devices, then try again.";
+
+/** Older servers omit the DPoP category, but newer servers can also omit it for
+ * a credential failure that happens after proof verification. */
+export const DPOP_UNKNOWN_HINT =
+  "Hint: Try again. If it still fails, clock skew may be the cause; check that automatic date and time is enabled on both devices.";
 
 export const DPOP_RETRY_HINT = "Hint: Try again. If the problem continues, copy the trace ID.";
 
 export function dpopFailureHint(reason: DpopFailureReason | undefined): string {
-  return reason === undefined || reason === "time_window" ? DPOP_CLOCK_HINT : DPOP_RETRY_HINT;
+  if (reason === "time_window") return DPOP_CLOCK_HINT;
+  if (reason === undefined) return DPOP_UNKNOWN_HINT;
+  return DPOP_RETRY_HINT;
+}
+
+export function dpopFailureMessage(message: string, reason: DpopFailureReason | undefined): string {
+  return `${message} ${dpopFailureHint(reason)}`;
 }
 
 export function relayProtectedErrorMessage(error: RelayProtectedError): string {
@@ -22,7 +29,7 @@ export function relayProtectedErrorMessage(error: RelayProtectedError): string {
         case "invalid_bearer":
           return "Relay rejected the cloud session token.";
         case "invalid_dpop":
-          return `Relay rejected the DPoP proof.\n\n${dpopFailureHint(error.dpopFailureReason)}`;
+          return dpopFailureMessage("Relay rejected the DPoP proof.", error.dpopFailureReason);
         case "not_authorized":
           return "Relay rejected the authenticated request.";
       }

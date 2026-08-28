@@ -6,7 +6,7 @@ import * as Option from "effect/Option";
 import * as Ref from "effect/Ref";
 import * as TestClock from "effect/testing/TestClock";
 
-import { DPOP_CLOCK_HINT } from "../relay/errorPresentation.ts";
+import { DPOP_UNKNOWN_HINT } from "../relay/errorPresentation.ts";
 import * as ManagedRelay from "../relay/managedRelay.ts";
 import { remoteHttpClientLayer } from "../rpc/http.ts";
 import * as ClientCapabilities from "../platform/capabilities.ts";
@@ -342,7 +342,7 @@ describe("RemoteEnvironmentAuthorization", () => {
     }),
   );
 
-  it.effect("shows the clock hint when an environment rejects a DPoP bootstrap proof", () =>
+  it.effect("presents clock skew as one possible cause for a generic DPoP rejection", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness({
         responses: [Response.json(DESCRIPTOR), authInvalid()],
@@ -359,7 +359,7 @@ describe("RemoteEnvironmentAuthorization", () => {
       expect(failure).toMatchObject({
         _tag: "ConnectionBlockedError",
         reason: "authentication",
-        detail: `The environment credential is invalid.\n\n${DPOP_CLOCK_HINT}`,
+        detail: `The environment credential is invalid. ${DPOP_UNKNOWN_HINT}`,
         traceId: "trace-auth-invalid",
       });
     }),

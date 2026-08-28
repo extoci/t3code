@@ -1464,16 +1464,7 @@ function SavedBackendListRow({
           ) : null}
           {environment.connection.error && !resumingServerUpdate ? (
             <p className="flex min-w-0 items-center gap-2 text-destructive text-xs">
-              <span
-                className={cn(
-                  "min-w-0",
-                  connectionStatusText(environment.connection).includes("\n")
-                    ? "whitespace-pre-line break-words"
-                    : "truncate",
-                )}
-              >
-                {connectionStatusText(environment.connection)}
-              </span>
+              <span className="truncate">{connectionStatusText(environment.connection)}</span>
               {errorTraceId ? (
                 <button
                   type="button"
