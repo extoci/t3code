@@ -943,9 +943,11 @@ export const MAC_FILE_EXCLUSIONS = [
 ] as const;
 
 // node-pty publishes both Darwin prebuilds in one package. Single-architecture
-// apps only need the native target; universal apps need both.
-export function resolveMacFileExclusions(arch: typeof BuildArch.Type) {
-  if (arch === "universal") {
+// apps only need the native target; universal apps need both. An omitted arch
+// preserves the existing common exclusions for callers that only inspect the
+// generic platform config.
+export function resolveMacFileExclusions(arch?: typeof BuildArch.Type) {
+  if (arch === undefined || arch === "universal") {
     return [...MAC_FILE_EXCLUSIONS];
   }
 
@@ -2435,11 +2437,11 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
         readonly provisioningProfilePath: string;
       }
     | undefined,
-  arch: typeof BuildArch.Type,
   // Windows only, and false when no Linux node-pty prebuild was bundled: the
   // sidecar staging skips the archive in that case, and listing a resource
   // whose source file was never written fails the electron-builder step.
   wslRuntimeBundled = false,
+  arch?: typeof BuildArch.Type,
 ) {
   const buildConfig: Record<string, unknown> = {
     appId: DESKTOP_APP_ID,
@@ -3516,8 +3518,8 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
             provisioningProfilePath: macPasskeySigning.provisioningProfilePath,
           }
         : undefined,
-      options.arch,
       bundlesWslRuntime({ arch: options.arch, prebuildPath: options.wslPrebuild }),
+      options.arch,
     ),
     dependencies: stageDependencies,
     devDependencies: {

@@ -51,7 +51,6 @@ import {
   resolveDesktopProductName,
   resolveDesktopUpdateChannel,
   resolveDesktopWebAssetBrand,
-  resolveMacFileExclusions,
   resolveResourceMonitorRustTargets,
   resolveWindowsServerAsarIgnoreGlobs,
   resourceMonitorExecutableName,
@@ -332,7 +331,6 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         false,
         undefined,
         undefined,
-        "arm64",
       );
       const release = yield* createBuildConfig(
         "mac",
@@ -342,7 +340,6 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         false,
         undefined,
         undefined,
-        "arm64",
       );
 
       assert.notProperty(preview, "publish");
@@ -577,7 +574,6 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         false,
         undefined,
         undefined,
-        "arm64",
       );
       const linux = yield* createBuildConfig(
         "linux",
@@ -587,7 +583,6 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         false,
         undefined,
         undefined,
-        "x64",
       );
       const win = yield* createBuildConfig(
         "win",
@@ -597,7 +592,6 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         false,
         undefined,
         undefined,
-        "x64",
         true,
       );
       const winWithoutWslPrebuild = yield* createBuildConfig(
@@ -608,7 +602,6 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         false,
         undefined,
         undefined,
-        "x64",
         false,
       );
 
@@ -665,10 +658,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
       assert.deepStrictEqual((linux.linux as Record<string, unknown>).protocols, [
         { name: "T3 Code", schemes: ["t3code", "t3code-dev"] },
       ]);
-      assert.deepStrictEqual(mac.files, [
-        ...DESKTOP_FILE_EXCLUSIONS,
-        ...resolveMacFileExclusions("arm64"),
-      ]);
+      assert.deepStrictEqual(mac.files, [...DESKTOP_FILE_EXCLUSIONS, ...MAC_FILE_EXCLUSIONS]);
       assert.notProperty(mac.mac as Record<string, unknown>, "sign");
       for (const config of [linux, win]) {
         assert.deepStrictEqual(config.electronLanguages, DESKTOP_ELECTRON_LANGUAGES);
@@ -678,36 +668,12 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
     }).pipe(Effect.provide(ConfigProvider.layer(ConfigProvider.fromEnv({ env: {} })))),
   );
 
-  it("excludes common Windows terminal binaries from macOS packages", () => {
+  it("excludes Windows terminal binaries only from macOS packages", () => {
     assert.deepStrictEqual(MAC_FILE_EXCLUSIONS, [
       "!**/node_modules/node-pty/prebuilds/win32-*/**/*",
       "!**/node_modules/node-pty/third_party/conpty/**/*",
     ]);
   });
-
-  it.effect("excludes only the opposite Darwin node-pty architecture", () =>
-    Effect.gen(function* () {
-      const architectures = ["arm64", "x64", "universal"] as const;
-      const expectedMacFileExclusions = {
-        arm64: [...MAC_FILE_EXCLUSIONS, "!**/node_modules/node-pty/prebuilds/darwin-x64/**/*"],
-        x64: [...MAC_FILE_EXCLUSIONS, "!**/node_modules/node-pty/prebuilds/darwin-arm64/**/*"],
-        universal: [...MAC_FILE_EXCLUSIONS],
-      };
-      const configs = yield* Effect.all(
-        architectures.map((arch) =>
-          createBuildConfig("mac", "dmg", "1.2.3", false, false, undefined, undefined, arch),
-        ),
-      );
-
-      for (const [index, arch] of architectures.entries()) {
-        assert.deepStrictEqual(resolveMacFileExclusions(arch), expectedMacFileExclusions[arch]);
-        assert.deepStrictEqual(configs[index]?.files, [
-          ...DESKTOP_FILE_EXCLUSIONS,
-          ...expectedMacFileExclusions[arch],
-        ]);
-      }
-    }).pipe(Effect.provide(ConfigProvider.layer(ConfigProvider.fromEnv({ env: {} })))),
-  );
 
   it("stages only server runtime externals in macOS packages", () => {
     assert.deepStrictEqual(
@@ -1627,19 +1593,10 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
 
   it.effect("adds passkey entitlements and both renderer protocols to signed macOS builds", () =>
     Effect.gen(function* () {
-      const config = yield* createBuildConfig(
-        "mac",
-        "dmg",
-        "1.2.3",
-        true,
-        false,
-        undefined,
-        {
-          entitlementsPath: "/tmp/entitlements.mac.plist",
-          provisioningProfilePath: "/tmp/t3code.provisionprofile",
-        },
-        "arm64",
-      );
+      const config = yield* createBuildConfig("mac", "dmg", "1.2.3", true, false, undefined, {
+        entitlementsPath: "/tmp/entitlements.mac.plist",
+        provisioningProfilePath: "/tmp/t3code.provisionprofile",
+      });
 
       const mac = config.mac as Record<string, unknown>;
       assert.equal(config.appId, "com.t3tools.t3code");
@@ -1662,7 +1619,6 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         false,
         undefined,
         undefined,
-        "arm64",
       );
 
       assert.equal(
@@ -1682,7 +1638,6 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         false,
         undefined,
         undefined,
-        "x64",
       );
 
       const win = config.win as Record<string, unknown>;
