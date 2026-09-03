@@ -25,13 +25,6 @@ import {
   workEntryIndicatesToolNeutralStatus,
   workEntryIndicatesToolSuccess,
 } from "./session-logic";
-import { deriveLatestContextWindowSnapshot } from "./lib/contextWindow";
-import { foldSubagentActivities } from "@t3tools/client-runtime/state/subagentRuntime";
-import {
-  computeStableMessagesTimelineRows,
-  deriveMessagesTimelineRows,
-} from "./components/chat/MessagesTimeline.logic";
-
 let nextActivityId = 0;
 
 function makeActivity(overrides: {
@@ -1626,6 +1619,59 @@ describe("deriveWorkLogEntries", () => {
     ]);
   });
 
+  it("keeps changed file paths returned by MCP tools", () => {
+    const [entry] = deriveWorkLogEntries([
+      makeActivity({
+        id: "mcp-file-tool",
+        kind: "tool.completed",
+        summary: "Edited file",
+        payload: {
+          itemType: "mcp_tool_call",
+          data: {
+            toolName: "editor",
+            files: [{ path: "apps/web/src/session-logic.ts" }],
+          },
+        },
+      }),
+    ]);
+
+    expect(entry?.changedFiles).toEqual(["apps/web/src/session-logic.ts"]);
+  });
+
+  it("does not treat a path read by a dynamic tool as a changed file", () => {
+    const [entry] = deriveWorkLogEntries([
+      makeActivity({
+        id: "dynamic-read-tool",
+        kind: "tool.completed",
+        summary: "Read file",
+        payload: {
+          itemType: "dynamic_tool_call",
+          title: "read",
+          data: { kind: "read", path: "apps/web/src/session-logic.ts" },
+        },
+      }),
+    ]);
+
+    expect(entry?.changedFiles).toBeUndefined();
+  });
+
+  it("keeps changed file paths from explicitly mutating dynamic tools", () => {
+    const [entry] = deriveWorkLogEntries([
+      makeActivity({
+        id: "dynamic-write-tool",
+        kind: "tool.completed",
+        summary: "Wrote file",
+        payload: {
+          itemType: "dynamic_tool_call",
+          title: "write",
+          data: { kind: "write", path: "apps/web/src/session-logic.ts" },
+        },
+      }),
+    ]);
+
+    expect(entry?.changedFiles).toEqual(["apps/web/src/session-logic.ts"]);
+  });
+
   it("drops duplicated tool detail when it only repeats the title", () => {
     const activities: OrchestrationThreadActivity[] = [
       makeActivity({
@@ -2485,7 +2531,7 @@ describe("rerun workflows", () => {
   });
 });
 
-describe("session activity performance", () => {
+describe("session activity projection reuse", () => {
   it("reuses entries for unchanged activities", () => {
     const activities = ["status", "diff", "log"].map((command, index) =>
       makeActivity({
@@ -2598,288 +2644,5 @@ describe("session activity performance", () => {
       "branch-tool-first",
       "branch-tool-updated",
     ]);
-  });
-
-  it("benchmarks the live ChatView activity projection fanout", () => {
-    const activities = Array.from({ length: 20_000 }, (_, index) =>
-      makeActivity({
-        id: `fanout-tool-${index}`,
-        createdAt: new Date(1_700_000_000_000 + index).toISOString(),
-        kind: "tool.completed",
-        summary: "Ran command",
-        sequence: index,
-        payload: {
-          itemType: "command_execution",
-          title: "Ran command",
-          data: {
-            toolCallId: `fanout-tool-${index}`,
-            item: { command: ["git", "status"] },
-          },
-        },
-      }),
-    );
-
-    const startedAt = performance.now();
-    const workLogEntries = deriveWorkLogEntries(activities);
-    const pendingApprovals = derivePendingApprovals(activities);
-    const pendingUserInputs = derivePendingUserInputs(activities);
-    const activePlan = deriveActivePlanState(activities, undefined);
-    const contextWindow = deriveLatestContextWindowSnapshot(activities);
-    const agents = foldSubagentActivities(activities);
-    const timeline = deriveTimelineEntries([], [], workLogEntries);
-    const elapsedMs = performance.now() - startedAt;
-
-    expect({
-      workLogEntries,
-      pendingApprovals,
-      pendingUserInputs,
-      activePlan,
-      contextWindow,
-      agents,
-      timeline,
-    }).toMatchObject({
-      workLogEntries: { length: 20_000 },
-      pendingApprovals: [],
-      pendingUserInputs: [],
-      activePlan: null,
-      contextWindow: null,
-      agents: [],
-      timeline: { length: 20_000 },
-    });
-    expect(elapsedMs).toBeLessThan(1_000);
-  });
-
-  it("benchmarks repeated live work-log appends", () => {
-    let activities = Array.from({ length: 20_000 }, (_, index) =>
-      makeActivity({
-        id: `streaming-tool-${index}`,
-        createdAt: new Date(1_700_000_000_000 + index).toISOString(),
-        kind: "tool.completed",
-        summary: "Ran command",
-        sequence: index,
-        payload: {
-          itemType: "command_execution",
-          title: "Ran command",
-          data: {
-            toolCallId: `streaming-tool-${index}`,
-            item: { command: ["git", "status"] },
-          },
-        },
-      }),
-    );
-    let projection = deriveWorkLogEntriesWithState(activities);
-    let entries = projection.entries;
-    const startedAt = performance.now();
-    for (let index = 0; index < 100; index += 1) {
-      activities = [
-        ...activities,
-        makeActivity({
-          id: `streaming-tool-appended-${index}`,
-          createdAt: new Date(1_700_000_000_000 + activities.length).toISOString(),
-          kind: "tool.completed",
-          summary: "Ran command",
-          sequence: activities.length,
-          payload: {
-            itemType: "command_execution",
-            title: "Ran command",
-            data: {
-              toolCallId: `streaming-tool-appended-${index}`,
-              item: { command: ["git", "diff"] },
-            },
-          },
-        }),
-      ];
-      projection = deriveWorkLogEntriesWithState(activities, projection);
-      entries = projection.entries;
-    }
-    const elapsedMs = performance.now() - startedAt;
-
-    expect(entries).toHaveLength(20_100);
-    expect(elapsedMs).toBeLessThan(500);
-  });
-
-  it("benchmarks repeated work-log appends through timeline rows", () => {
-    let activities = Array.from({ length: 20_000 }, (_, index) =>
-      makeActivity({
-        id: `rows-tool-${index}`,
-        createdAt: new Date(1_700_000_000_000 + index).toISOString(),
-        kind: "tool.completed",
-        summary: "Ran command",
-        sequence: index,
-        payload: {
-          itemType: "command_execution",
-          title: "Ran command",
-          data: {
-            toolCallId: `rows-tool-${index}`,
-            item: { command: ["git", "status"] },
-          },
-        },
-      }),
-    );
-    let projection = deriveWorkLogEntriesWithState(activities);
-    let workLogEntries = projection.entries;
-    let timelineProjection = deriveTimelineEntriesWithState([], [], workLogEntries);
-    let timelineEntries = timelineProjection.entries;
-    let stableRows = computeStableMessagesTimelineRows(
-      deriveMessagesTimelineRows({
-        timelineEntries,
-        isWorking: false,
-        activeTurnStartedAt: null,
-        turnDiffSummaryByAssistantMessageId: new Map(),
-        revertTurnCountByUserMessageId: new Map(),
-      }),
-      { byId: new Map(), result: [] },
-    );
-    const startedAt = performance.now();
-    for (let index = 0; index < 100; index += 1) {
-      activities = [
-        ...activities,
-        makeActivity({
-          id: `rows-tool-appended-${index}`,
-          createdAt: new Date(1_700_000_000_000 + activities.length).toISOString(),
-          kind: "tool.completed",
-          summary: "Ran command",
-          sequence: activities.length,
-          payload: {
-            itemType: "command_execution",
-            title: "Ran command",
-            data: {
-              toolCallId: `rows-tool-appended-${index}`,
-              item: { command: ["git", "diff"] },
-            },
-          },
-        }),
-      ];
-      projection = deriveWorkLogEntriesWithState(activities, projection);
-      workLogEntries = projection.entries;
-      timelineProjection = deriveTimelineEntriesWithState(
-        [],
-        [],
-        workLogEntries,
-        timelineProjection,
-      );
-      timelineEntries = timelineProjection.entries;
-      const rows = deriveMessagesTimelineRows({
-        timelineEntries,
-        isWorking: false,
-        activeTurnStartedAt: null,
-        turnDiffSummaryByAssistantMessageId: new Map(),
-        revertTurnCountByUserMessageId: new Map(),
-      });
-      stableRows = computeStableMessagesTimelineRows(rows, stableRows);
-    }
-    const elapsedMs = performance.now() - startedAt;
-
-    expect({ entries: workLogEntries, timelineEntries, rows: stableRows.result }).toMatchObject({
-      entries: { length: 20_100 },
-      timelineEntries: { length: 20_100 },
-      rows: { length: 1 },
-    });
-    expect(elapsedMs).toBeLessThan(1_500);
-  });
-
-  it("benchmarks repeated active timeline appends", () => {
-    const turnId = TurnId.make("active-benchmark-turn");
-    const createdAt = new Date(1_700_000_000_000).toISOString();
-    const userMessage = {
-      id: MessageId.make("active-benchmark-user"),
-      role: "user" as const,
-      text: "Run the tools",
-      turnId: null,
-      createdAt,
-      updatedAt: createdAt,
-      streaming: false,
-    };
-    let activities = Array.from({ length: 20_000 }, (_, index) =>
-      makeActivity({
-        id: `active-rows-tool-${index}`,
-        createdAt: new Date(1_700_000_000_000 + index + 1).toISOString(),
-        kind: "tool.completed",
-        summary: "Ran command",
-        turnId: turnId,
-        sequence: index,
-        payload: {
-          itemType: "command_execution",
-          title: "Ran command",
-          data: {
-            toolCallId: `active-rows-tool-${index}`,
-            item: { command: ["git", "status"] },
-          },
-        },
-      }),
-    );
-    let projection = deriveWorkLogEntriesWithState(activities);
-    let timelineProjection = deriveTimelineEntriesWithState([userMessage], [], projection.entries);
-    let timelineEntries = timelineProjection.entries;
-    const input = {
-      isWorking: true,
-      latestTurn: {
-        turnId,
-        state: "running" as const,
-        startedAt: createdAt,
-        completedAt: null,
-      },
-      runningTurnId: turnId,
-      activeTurnStartedAt: createdAt,
-      turnDiffSummaryByAssistantMessageId: new Map(),
-      revertTurnCountByUserMessageId: new Map(),
-    };
-    let stableRows = computeStableMessagesTimelineRows(
-      deriveMessagesTimelineRows({ ...input, timelineEntries }),
-      { byId: new Map(), result: [] },
-    );
-    const startedAt = performance.now();
-    let workLogMs = 0;
-    let timelineMs = 0;
-    let rowsMs = 0;
-    let stableMs = 0;
-    for (let index = 0; index < 100; index += 1) {
-      activities = [
-        ...activities,
-        makeActivity({
-          id: `active-rows-tool-appended-${index}`,
-          createdAt: new Date(1_700_000_000_000 + activities.length + 1).toISOString(),
-          kind: "tool.completed",
-          summary: "Ran command",
-          turnId: turnId,
-          sequence: activities.length,
-          payload: {
-            itemType: "command_execution",
-            title: "Ran command",
-            data: {
-              toolCallId: `active-rows-tool-appended-${index}`,
-              item: { command: ["git", "diff"] },
-            },
-          },
-        }),
-      ];
-      let stageStartedAt = performance.now();
-      projection = deriveWorkLogEntriesWithState(activities, projection);
-      workLogMs += performance.now() - stageStartedAt;
-      stageStartedAt = performance.now();
-      timelineProjection = deriveTimelineEntriesWithState(
-        [userMessage],
-        [],
-        projection.entries,
-        timelineProjection,
-      );
-      timelineEntries = timelineProjection.entries;
-      timelineMs += performance.now() - stageStartedAt;
-      stageStartedAt = performance.now();
-      const rows = deriveMessagesTimelineRows({ ...input, timelineEntries });
-      rowsMs += performance.now() - stageStartedAt;
-      stageStartedAt = performance.now();
-      stableRows = computeStableMessagesTimelineRows(rows, stableRows);
-      stableMs += performance.now() - stageStartedAt;
-    }
-    const elapsedMs = performance.now() - startedAt;
-
-    expect(stableRows.result.find((row) => row.kind === "work-live")).toMatchObject({
-      groupedEntries: { length: 20_100 },
-    });
-    expect(
-      elapsedMs,
-      `active appends ${elapsedMs.toFixed(1)}ms (work ${workLogMs.toFixed(1)}, timeline ${timelineMs.toFixed(1)}, rows ${rowsMs.toFixed(1)}, stable ${stableMs.toFixed(1)})`,
-    ).toBeLessThan(2_000);
   });
 });

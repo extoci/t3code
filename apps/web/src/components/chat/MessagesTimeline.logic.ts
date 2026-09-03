@@ -565,14 +565,16 @@ interface ActiveWorkPresentationState {
 
 const activeWorkPresentationByAnchor = new WeakMap<WorkLogEntry, ActiveWorkPresentationState>();
 
-interface ActiveTimelineScanState {
+export interface ActiveTimelineScanState {
   timelineEntries: ReadonlyArray<TimelineEntry>;
   activeTurnId: TurnId | null;
   activeTurnHeaderIndex: number;
   activeToolEntries: ReadonlyArray<ActiveWorkTimelineEntry>;
 }
 
-let latestActiveTimelineScan: ActiveTimelineScanState | null = null;
+export interface ActiveTimelineScanRef {
+  current: ActiveTimelineScanState | null;
+}
 
 function hasExactActiveWorkPrefix(
   previous: ReadonlyArray<ActiveWorkTimelineEntry>,
@@ -678,13 +680,16 @@ function deriveActiveToolTimelineEntries(
     readonly isWorking: boolean;
   },
   unsettledTurnId: TurnId | null,
+  activeTimelineScanRef: ActiveTimelineScanRef | undefined,
 ): { activeTurnHeaderIndex: number; activeToolEntries: ReadonlyArray<ActiveWorkTimelineEntry> } {
   if (!input.isWorking) {
-    latestActiveTimelineScan = null;
+    if (activeTimelineScanRef) {
+      activeTimelineScanRef.current = null;
+    }
     return { activeTurnHeaderIndex: input.timelineEntries.length, activeToolEntries: [] };
   }
 
-  const previous = latestActiveTimelineScan;
+  const previous = activeTimelineScanRef?.current;
   if (
     previous?.activeTurnId === unsettledTurnId &&
     hasExactTimelinePrefix(previous.timelineEntries, input.timelineEntries)
@@ -710,12 +715,14 @@ function deriveActiveToolTimelineEntries(
         appendedEntries.length > 0
           ? [...previous.activeToolEntries, ...appendedEntries]
           : previous.activeToolEntries;
-      latestActiveTimelineScan = {
-        timelineEntries: input.timelineEntries,
-        activeTurnId: unsettledTurnId,
-        activeTurnHeaderIndex: previous.activeTurnHeaderIndex,
-        activeToolEntries,
-      };
+      if (activeTimelineScanRef) {
+        activeTimelineScanRef.current = {
+          timelineEntries: input.timelineEntries,
+          activeTurnId: unsettledTurnId,
+          activeTurnHeaderIndex: previous.activeTurnHeaderIndex,
+          activeToolEntries,
+        };
+      }
       return {
         activeTurnHeaderIndex: previous.activeTurnHeaderIndex,
         activeToolEntries,
@@ -742,12 +749,14 @@ function deriveActiveToolTimelineEntries(
     activeToolEntries.push(entry);
   }
   activeToolEntries.reverse();
-  latestActiveTimelineScan = {
-    timelineEntries: input.timelineEntries,
-    activeTurnId: unsettledTurnId,
-    activeTurnHeaderIndex,
-    activeToolEntries,
-  };
+  if (activeTimelineScanRef) {
+    activeTimelineScanRef.current = {
+      timelineEntries: input.timelineEntries,
+      activeTurnId: unsettledTurnId,
+      activeTurnHeaderIndex,
+      activeToolEntries,
+    };
+  }
   return { activeTurnHeaderIndex, activeToolEntries };
 }
 
@@ -1090,6 +1099,7 @@ export function deriveMessagesTimelineRows(input: {
   activeTurnStartedAt: string | null;
   turnDiffSummaryByAssistantMessageId: ReadonlyMap<MessageId, TurnDiffSummary>;
   revertTurnCountByUserMessageId: ReadonlyMap<MessageId, number>;
+  activeTimelineScanRef?: ActiveTimelineScanRef;
 }): MessagesTimelineRow[] {
   const nextRows: MessagesTimelineRow[] = [];
   const durationStartByMessageId = computeMessageDurationStart(
@@ -1118,6 +1128,7 @@ export function deriveMessagesTimelineRows(input: {
   const { activeTurnHeaderIndex, activeToolEntries } = deriveActiveToolTimelineEntries(
     input,
     unsettledTurnId,
+    input.activeTimelineScanRef,
   );
   const activeWorkPresentation = deriveActiveWorkPresentation(activeToolEntries, unsettledTurnId);
   const visibleActiveToolEntries = activeWorkPresentation.visibleEntries;

@@ -1023,11 +1023,22 @@ function toDerivedWorkLogEntry(activity: OrchestrationThreadActivity): DerivedWo
       ? (activity.payload as Record<string, unknown>)
       : null;
   const itemType = extractWorkLogItemType(payload);
+  const requestKind = extractWorkLogRequestKind(payload);
   const commandPreview = extractToolCommand(payload);
-  // Only file-change items carry changed-file metadata. Keep the fallback for
-  // legacy payloads without a recognized item type.
-  const changedFiles =
-    itemType !== undefined && itemType !== "file_change" ? [] : extractChangedFiles(payload);
+  const dataKind = asTrimmedString(asRecord(payload?.data)?.kind)?.toLowerCase();
+  // File-change events and mutating dynamic tools carry explicit edit
+  // metadata. MCP results can also return normalized `files`, while legacy
+  // payloads without an item type still need the recursive fallback.
+  const shouldExtractChangedFiles =
+    itemType === undefined ||
+    itemType === "file_change" ||
+    itemType === "mcp_tool_call" ||
+    requestKind === "file-change" ||
+    dataKind === "edit" ||
+    dataKind === "write" ||
+    dataKind === "move" ||
+    dataKind === "delete";
+  const changedFiles = shouldExtractChangedFiles ? extractChangedFiles(payload) : [];
   const title = extractToolTitle(payload);
   const toolPresentation = extractToolActivityPresentation(payload);
   const isTaskActivity =
@@ -1068,7 +1079,6 @@ function toDerivedWorkLogEntry(activity: OrchestrationThreadActivity): DerivedWo
           : activity.tone,
     sourceActivityKind: activity.kind,
   };
-  const requestKind = extractWorkLogRequestKind(payload);
   const viewedImagePath = asTrimmedString(asRecord(payload?.data)?.imagePath);
   if (detail) {
     entry.detail = detail;
