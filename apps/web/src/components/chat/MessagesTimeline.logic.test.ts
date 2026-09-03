@@ -2447,4 +2447,60 @@ describe("computeStableMessagesTimelineRows", () => {
     expect(reordered).not.toBe(initial);
     expect(reordered.result).toEqual([initial.result[1], initial.result[0]]);
   });
+
+  it("keeps expanded group snapshots immutable across appended work", () => {
+    const firstEntry = {
+      id: "work-append-1",
+      createdAt: "2026-01-01T00:00:01Z",
+      label: "Ran command",
+      command: "git status",
+      tone: "tool" as const,
+      toolLifecycleStatus: "completed" as const,
+    };
+    const secondEntry = {
+      ...firstEntry,
+      id: "work-append-2",
+      command: "git diff",
+    };
+    const baseInput = {
+      isWorking: false,
+      expandedWorkGroupIds: new Set(["work-group:work-append-1"]),
+      activeTurnStartedAt: null,
+      turnDiffSummaryByAssistantMessageId: new Map(),
+      revertTurnCountByUserMessageId: new Map(),
+    };
+    const initial = deriveMessagesTimelineRows({
+      ...baseInput,
+      timelineEntries: [
+        {
+          id: firstEntry.id,
+          kind: "work" as const,
+          createdAt: firstEntry.createdAt,
+          entry: firstEntry,
+        },
+      ],
+    });
+    const updated = deriveMessagesTimelineRows({
+      ...baseInput,
+      timelineEntries: [
+        {
+          id: firstEntry.id,
+          kind: "work" as const,
+          createdAt: firstEntry.createdAt,
+          entry: firstEntry,
+        },
+        {
+          id: secondEntry.id,
+          kind: "work" as const,
+          createdAt: secondEntry.createdAt,
+          entry: secondEntry,
+        },
+      ],
+    });
+    const initialDetails = initial.find((row) => row.kind === "work");
+    const updatedDetails = updated.find((row) => row.kind === "work");
+
+    expect(initialDetails?.groupedEntries).toHaveLength(1);
+    expect(updatedDetails?.groupedEntries).toHaveLength(2);
+  });
 });

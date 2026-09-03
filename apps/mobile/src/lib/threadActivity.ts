@@ -15,15 +15,16 @@ import type {
 import { formatDuration } from "@t3tools/shared/orchestrationTiming";
 import {
   commandDetailRepeatsCommand,
+  createToolGroupSummaryAccumulator,
   extractCommandOutputText,
   isWorktreeSetupActivity,
   liveActivityToolStatus,
   normalizeCompactToolLabel,
   omitSupersededLifecycleMarkers,
   resolveWorkEntryToolPresentation,
-  summarizeToolGroup,
+  summarizeToolGroupAccumulator,
   toolGroupAction,
-  toolGroupSummaryKind,
+  toolGroupSummaryKindFromAccumulator,
   type ToolGroupSummaryKind,
 } from "@t3tools/client-runtime/work-log/presentation";
 import { extractToolActivityPresentation } from "@t3tools/client-runtime/work-log/tool-presentation";
@@ -381,7 +382,7 @@ function isAgentInternalActivity(activity: OrchestrationThreadActivity): boolean
 function deriveWorkLogEntries(
   activities: ReadonlyArray<OrchestrationThreadActivity>,
 ): DerivedWorkLogEntry[] {
-  const ordered = Arr.sort(activities, activityOrder);
+  const ordered = sortThreadActivities(activities);
   const entries: DerivedWorkLogEntry[] = [];
   for (const activity of ordered) {
     if (activity.tone !== "error" && isWorktreeSetupActivity(activity.kind)) continue;
@@ -1238,6 +1239,34 @@ const activityOrder = Order.combineAll<OrchestrationThreadActivity>([
   Order.mapInput(Order.String, (activity) => activity.id),
 ]);
 
+const sortedActivitiesCache = new WeakMap<
+  ReadonlyArray<OrchestrationThreadActivity>,
+  ReadonlyArray<OrchestrationThreadActivity>
+>();
+
+function sortActivitiesIfNeeded(
+  activities: ReadonlyArray<OrchestrationThreadActivity>,
+): ReadonlyArray<OrchestrationThreadActivity> {
+  const cached = sortedActivitiesCache.get(activities);
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  let isOrdered = true;
+  for (let index = 1; index < activities.length; index += 1) {
+    const previous = activities[index - 1];
+    const current = activities[index];
+    if (previous && current && activityOrder(previous, current) > 0) {
+      isOrdered = false;
+      break;
+    }
+  }
+
+  const sorted = isOrdered ? activities : Arr.sort(activities, activityOrder);
+  sortedActivitiesCache.set(activities, sorted);
+  return sorted;
+}
+
 function isEmptyMessage(entry: RawThreadFeedEntry): boolean {
   if (entry.type !== "message") {
     return false;
@@ -1578,6 +1607,10 @@ function appendToolGroupRows(
   const live = activeTail || active;
   const latestActivity = latestActiveActivity ?? activities.at(-1)!;
   const singleActivity = activities.length === 1 ? latestActivity : null;
+  const summaryEntries = (live ? [latestActivity] : activities).map(
+    (activity) => activity.workEntry,
+  );
+  const summaryAccumulator = createToolGroupSummaryAccumulator(summaryEntries);
   const summary = live
     ? liveToolActivitySummary(latestActivity, live)
     : singleActivity !== null &&
@@ -1586,7 +1619,7 @@ function appendToolGroupRows(
       ? singleToolCallLabel(singleActivity)
       : singleActivity !== null && !singleActivity.toolLike
         ? singleActivity.workEntry.label
-        : summarizeToolGroup(activities.map((activity) => activity.workEntry));
+        : summarizeToolGroupAccumulator(summaryAccumulator);
   const primarySourceActivity = activities.find(
     (activity) => activity.workEntry.toolSource !== undefined,
   );
@@ -1624,9 +1657,7 @@ function appendToolGroupRows(
     hiddenCount: activities.length,
     expanded,
     summary,
-    summaryKind: toolGroupSummaryKind(
-      (live ? [latestActivity] : activities).map((activity) => activity.workEntry),
-    ),
+    summaryKind: toolGroupSummaryKindFromAccumulator(summaryAccumulator),
     ...(groupToolSurface ? { toolSurface: groupToolSurface } : {}),
     ...(groupToolIcon ? { toolIcon: groupToolIcon } : {}),
     ...(summaryToolIcon ? { summaryToolIcon } : {}),
@@ -1688,7 +1719,7 @@ function liveToolActivitySummary(activity: ThreadFeedActivity, presentTense: boo
 export function sortThreadActivities(
   activities: ReadonlyArray<OrchestrationThreadActivity>,
 ): ReadonlyArray<OrchestrationThreadActivity> {
-  return Arr.sort(activities, activityOrder);
+  return sortActivitiesIfNeeded(activities);
 }
 
 export function derivePendingApprovals(
