@@ -2508,6 +2508,29 @@ describe("PreviewManager", () => {
     withManager((manager) =>
       Effect.gen(function* () {
         const png = makeSourcePng(3840, 2160);
+        const sendCommand = vi.fn(async (method: string, params?: Record<string, unknown>) => {
+          if (method === "Runtime.evaluate") {
+            return { result: { value: { url: "about:blank", interactiveElements: [] } } };
+          }
+          if (method === "Page.getLayoutMetrics") {
+            return {
+              cssVisualViewport: {
+                pageX: 8,
+                pageY: 12,
+                clientWidth: 1920,
+                clientHeight: 1080,
+                zoom: 1.25,
+              },
+            };
+          }
+          if (method === "Page.captureScreenshot") {
+            expect(params).toMatchObject({
+              clip: { x: 10, y: 15, width: 2400, height: 1350, scale: 1 },
+            });
+            return { data: png.toString("base64") };
+          }
+          return method === "Accessibility.getFullAXTree" ? { nodes: [] } : undefined;
+        });
         const image = {
           toPNG: () => png,
           toJPEG: () => png,
@@ -2520,14 +2543,7 @@ describe("PreviewManager", () => {
         const wc = makeTestPreviewWebContents(async () => image);
         Object.assign(wc, { isDevToolsOpened: () => false });
         Object.assign(wc.debugger, {
-          sendCommand: vi.fn(async (method: string) => {
-            if (method === "Runtime.evaluate") {
-              return { result: { value: { url: "about:blank", interactiveElements: [] } } };
-            }
-            return method === "Accessibility.getFullAXTree"
-              ? { nodes: [] }
-              : screenshotCommand(method, async () => png);
-          }),
+          sendCommand,
         });
         fromId.mockReturnValue(wc);
         yield* manager.createTab("tab_1");
