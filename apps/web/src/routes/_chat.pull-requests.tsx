@@ -120,6 +120,7 @@ import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from "../
 import { SidebarInset } from "../components/ui/sidebar";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../components/ui/tooltip";
 import { useLiveRefresh } from "../hooks/useLiveRefresh";
+import { useEscapeToGoBack } from "../hooks/useEscapeToGoBack";
 import { usePanelAnimationSettings, usePanelPresence } from "../panelAnimations";
 import {
   pullRequestSurfaceId,
@@ -1871,6 +1872,7 @@ function PullRequestsRouteView() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [keybindings]);
+  useEscapeToGoBack();
 
   return (
     <SidebarInset className="h-dvh min-h-0 overflow-hidden overscroll-y-none bg-background text-foreground">
