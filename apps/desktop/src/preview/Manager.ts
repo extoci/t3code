@@ -751,6 +751,24 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
       );
     },
   );
+  const captureScreenshotWithFallback = Effect.fn("PreviewManager.captureScreenshotWithFallback")(
+    function* (errorContext: PreviewOperationContext, tabId: string, wc: Electron.WebContents) {
+      const capturePageContext = {
+        ...errorContext,
+        operation: "captureScreenshot.capturePage",
+      };
+      return yield* captureScreenshotWithRetry(errorContext, tabId, wc).pipe(
+        Effect.catchTags({
+          // A user can keep DevTools open while saving a screenshot. In that
+          // case debugger-independent capturePage remains the safe fallback.
+          PreviewAutomationDevToolsOpenError: () =>
+            capturePageWithRetry(capturePageContext, tabId, wc),
+          PreviewAutomationDebuggerAttachedError: () =>
+            capturePageWithRetry(capturePageContext, tabId, wc),
+        }),
+      );
+    },
+  );
   const currentIso = DateTime.now.pipe(Effect.map(DateTime.formatIso));
   const currentMillis = Clock.currentTimeMillis;
   const encodeJson = (errorContext: PreviewOperationContext, value: unknown) =>
@@ -2760,9 +2778,9 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
     const [createdAt, millis, image] = yield* Effect.all([
       currentIso,
       currentMillis,
-      capturePageWithRetry(
+      captureScreenshotWithFallback(
         {
-          operation: "captureScreenshot.capturePage",
+          operation: "captureScreenshot.captureNative",
           tabId,
           webContentsId: wc.id,
         },
