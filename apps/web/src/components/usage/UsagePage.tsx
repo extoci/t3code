@@ -1,5 +1,4 @@
 import { useAtomValue } from "@effect/atom-react";
-import * as Schema from "effect/Schema";
 import {
   USAGE_CONTRACT_VERSION,
   type EnvironmentId,
@@ -21,7 +20,6 @@ import {
 } from "@t3tools/shared/usageMerge";
 
 import { isElectron } from "../../env";
-import { useLocalStorage } from "../../hooks/useLocalStorage";
 import { cn } from "../../lib/utils";
 import { environmentPresentations } from "../../state/presentation";
 import { serverEnvironment } from "../../state/server";
@@ -64,6 +62,11 @@ import { UsageLimitsSection } from "./UsageLimits";
 import { UsagePriceOverrides } from "./UsagePriceOverrides";
 import { UsageProviderChart, type UsageChartMetric } from "./UsageProviderChart";
 import { PROVIDER_ORDER, PROVIDER_PRESENTATION, providersWithUsage } from "./usageProviders";
+import {
+  readUsagePagePreferences,
+  saveUsagePagePreferences,
+  type UsagePagePreferences,
+} from "./usagePagePreferences";
 
 type UsageMetric = UsageChartMetric | "limits";
 const METRIC_OPTIONS = [
@@ -71,20 +74,6 @@ const METRIC_OPTIONS = [
   { value: "tokens", label: "Tokens" },
   { value: "limits", label: "Limits" },
 ] as const satisfies readonly { value: UsageMetric; label: string }[];
-
-const USAGE_PAGE_PREFERENCES_STORAGE_KEY = "t3code:usage-page-preferences:v1";
-const UsageMetricSchema = Schema.Literals(["cost", "tokens", "limits"]);
-const UsageWindowDaysSchema = Schema.Literals([1, 7, 30, 90]);
-type UsageWindowDays = typeof UsageWindowDaysSchema.Type;
-const UsagePagePreferencesSchema = Schema.Struct({
-  metric: UsageMetricSchema,
-  windowDays: UsageWindowDaysSchema,
-});
-type UsagePagePreferences = typeof UsagePagePreferencesSchema.Type;
-const DEFAULT_USAGE_PAGE_PREFERENCES: UsagePagePreferences = {
-  metric: "cost",
-  windowDays: 30,
-};
 
 function isUsageMetric(value: string | null | undefined): value is UsageMetric {
   return METRIC_OPTIONS.some((option) => option.value === value);
@@ -97,16 +86,12 @@ const WINDOW_OPTIONS = [
   { days: 90, label: "90 days" },
 ] as const;
 
-function isUsageWindowDays(value: number): value is UsageWindowDays {
+function isUsageWindowDays(value: number): value is UsagePagePreferences["windowDays"] {
   return WINDOW_OPTIONS.some((option) => option.days === value);
 }
 
 export function UsagePage() {
-  const [preferences, setPreferences] = useLocalStorage(
-    USAGE_PAGE_PREFERENCES_STORAGE_KEY,
-    DEFAULT_USAGE_PAGE_PREFERENCES,
-    UsagePagePreferencesSchema,
-  );
+  const [preferences, setPreferences] = useState(readUsagePagePreferences);
   const [windowSelection, setWindowSelection] = useState(() => ({
     days: preferences.windowDays,
     window: makeWindow(
@@ -162,14 +147,18 @@ export function UsagePage() {
 
   const selectWindow = (days: number) => {
     if (!isUsageWindowDays(days)) return;
-    setPreferences((current) => ({ ...current, windowDays: days }));
+    const nextPreferences = { metric, windowDays: days };
+    setPreferences(nextPreferences);
+    saveUsagePagePreferences(nextPreferences);
     setWindowSelection({
       days,
       window: makeWindow(days, undefined, days === 1 ? "hour" : "day"),
     });
   };
   const selectMetric = (nextMetric: UsageMetric) => {
-    setPreferences((current) => ({ ...current, metric: nextMetric }));
+    const nextPreferences = { metric: nextMetric, windowDays };
+    setPreferences(nextPreferences);
+    saveUsagePagePreferences(nextPreferences);
   };
   const refreshWindow = () => {
     if (showingLimits) {
