@@ -9,7 +9,7 @@ import {
   type DesktopServerExposureMode,
   type DesktopServerExposureState,
 } from "@t3tools/contracts";
-import { readTailscaleStatus } from "@t3tools/tailscale";
+import { isTailscaleIpv4Address, readTailscaleStatus } from "@t3tools/tailscale";
 import * as Context from "effect/Context";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
@@ -27,7 +27,7 @@ import { resolveTailscaleAdvertisedEndpoints } from "./tailscaleEndpointProvider
 
 const TAILSCALE_STATUS_CACHE_TTL = Duration.seconds(60);
 
-export const DESKTOP_LOOPBACK_HOST = "127.0.0.1";
+const DESKTOP_LOOPBACK_HOST = "127.0.0.1";
 const DESKTOP_LAN_BIND_HOST = "0.0.0.0";
 
 interface ResolvedDesktopServerExposure {
@@ -65,7 +65,9 @@ const normalizeOptionalHost = (value: string | undefined): string | undefined =>
 };
 
 const isUsableLanIpv4Address = (address: string): boolean =>
-  !address.startsWith("127.") && !address.startsWith("169.254.");
+  !address.startsWith("127.") &&
+  !address.startsWith("169.254.") &&
+  !isTailscaleIpv4Address(address);
 
 const isHttpsEndpointUrl = (value: string): boolean => {
   try {
@@ -376,7 +378,14 @@ function resolveRuntimeState(input: {
     ...(advertisedHostOverride ? { advertisedHostOverride } : {}),
   });
   const unavailable =
-    input.requestedMode === "network-accessible" && requestedExposure.endpointUrl === null;
+    input.requestedMode === "network-accessible" &&
+    requestedExposure.endpointUrl === null &&
+    !Object.values(input.networkInterfaces).some((addresses) =>
+      addresses?.some(
+        (address) =>
+          !address.internal && address.family === "IPv4" && isTailscaleIpv4Address(address.address),
+      ),
+    );
   const exposure = unavailable
     ? resolveDesktopServerExposure({
         mode: "local-only",
@@ -402,6 +411,7 @@ const requiresBackendRelaunch = (previous: RuntimeState, next: RuntimeState): bo
   previous.bindHost !== next.bindHost ||
   previous.localHttpUrl !== next.localHttpUrl;
 
+/** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
   const config = yield* DesktopConfig.DesktopConfig;
   const networkInterfaces = yield* DesktopNetworkInterfaces.DesktopNetworkInterfaces;
