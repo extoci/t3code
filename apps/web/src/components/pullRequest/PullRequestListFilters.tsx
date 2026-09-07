@@ -127,7 +127,11 @@ export function PullRequestSearchInput({
         value={value}
         onChange={(event) => onChange(event.currentTarget.value)}
         onKeyDown={(event) => {
-          if (event.key !== "Escape" || event.nativeEvent.isComposing) return;
+          if (event.key !== "Escape") return;
+          if (event.nativeEvent.isComposing || event.keyCode === 229) {
+            event.stopPropagation();
+            return;
+          }
           event.preventDefault();
           event.stopPropagation();
           event.currentTarget.blur();
