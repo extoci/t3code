@@ -274,7 +274,7 @@ function WorkingDuration(props: { startedAt: string | null }) {
   }, [startedMs]);
   if (Number.isNaN(startedMs)) return null;
   return (
-    <span className="font-mono tabular-nums">
+    <span className="tabular-nums">
       {formatWorkingDurationLabel(Date.now() - startedMs)}
     </span>
   );
