@@ -14,7 +14,7 @@ export function useEscapeToGoBack() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.key !== "Escape") return;
+      if (event.defaultPrevented || event.key !== "Escape" || event.repeat) return;
       event.preventDefault();
 
       const activeElement = document.activeElement;
