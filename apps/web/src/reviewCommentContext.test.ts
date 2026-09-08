@@ -211,6 +211,31 @@ describe("review comment context parsing", () => {
     );
   });
 
+  it("round-trips whole-pull-request identity and URL", () => {
+    const comment = {
+      id: "pull-request-context:42",
+      sectionId: "pull-request:42",
+      sectionTitle: "PR #42",
+      filePath: "PR #42",
+      startIndex: 0,
+      endIndex: 0,
+      rangeLabel: "Review this PR",
+      text: "Review the pull request.",
+      diff: "",
+      pullRequestUrl: "https://github.com/pingdotgg/t3code/pull/42",
+    } as const;
+    const [segment] = parseReviewCommentMessageSegments(formatReviewCommentContext(comment));
+
+    expect(segment).toEqual(
+      expect.objectContaining({
+        kind: "review-comment",
+        comment: expect.objectContaining(comment),
+      }),
+    );
+    if (segment?.kind !== "review-comment") return;
+    expect(pullRequestContextUrl(segment.comment)).toBe(comment.pullRequestUrl);
+  });
+
   it("round-trips greater-than signs in attributes", () => {
     const serialized = formatReviewCommentContext({
       id: "comment-4",

@@ -142,9 +142,11 @@ function parseReviewCommentContext(
     return null;
   }
   const body = extractReviewCommentBody(rawBody);
+  const fallbackId = `review-comment:${index}:${sectionId}:${filePath}:${startIndex}:${endIndex}`;
+  const pullRequestUrl = attributes.pullRequestUrl?.trim();
 
   return {
-    id: `review-comment:${index}:${sectionId}:${filePath}:${startIndex}:${endIndex}`,
+    id: attributes.id?.trim() || fallbackId,
     sectionId,
     sectionTitle: attributes.sectionTitle?.trim() || "Review",
     filePath,
@@ -153,6 +155,7 @@ function parseReviewCommentContext(
     rangeLabel: attributes.rangeLabel?.trim() || "line",
     text: body.text,
     diff: body.contents,
+    ...(pullRequestUrl ? { pullRequestUrl } : {}),
     fenceLanguage: body.language,
   };
 }
@@ -226,12 +229,16 @@ export function formatReviewCommentContext(comment: ReviewCommentContext): strin
   return [
     [
       "<review_comment",
+      ` id="${escapeReviewCommentAttribute(comment.id)}"`,
       ` sectionId="${escapeReviewCommentAttribute(comment.sectionId)}"`,
       ` sectionTitle="${escapeReviewCommentAttribute(comment.sectionTitle)}"`,
       ` filePath="${escapeReviewCommentAttribute(comment.filePath)}"`,
       ` startIndex="${comment.startIndex}"`,
       ` endIndex="${comment.endIndex}"`,
       ` rangeLabel="${escapeReviewCommentAttribute(comment.rangeLabel)}"`,
+      ...(comment.pullRequestUrl
+        ? [` pullRequestUrl="${escapeReviewCommentAttribute(comment.pullRequestUrl)}"`]
+        : []),
       ">",
     ].join(""),
     neutralizeReviewCommentTags(comment.text.trim()),
