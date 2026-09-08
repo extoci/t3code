@@ -7,6 +7,7 @@ import {
   COMPOSER_INLINE_CHIP_ICON_CLASS_NAME,
   COMPOSER_INLINE_CHIP_LABEL_CLASS_NAME,
 } from "../composerInlineChip";
+import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { pullRequestContextUrl, type ReviewCommentContext } from "~/reviewCommentContext";
 import { cn } from "~/lib/utils";
@@ -18,6 +19,7 @@ interface ComposerPendingReviewCommentsProps {
   className?: string;
 }
 
+/** Renders review-context chips attached to the pending composer draft. */
 export function ComposerPendingReviewComments({
   comments,
   onRemove,
@@ -35,15 +37,16 @@ export function ComposerPendingReviewComments({
         const chip = (
           <span key={comment.id} className={cn(COMPOSER_INLINE_CHIP_CLASS_NAME, "pr-1")}>
             {canOpenPullRequest ? (
-              <button
-                type="button"
+              <Button
+                size="chip"
+                variant="chip"
                 aria-label={`Open ${comment.filePath} in the pull request panel`}
-                className="inline-flex h-full min-w-0 cursor-pointer items-center gap-[0.33em] rounded-sm text-inherit hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-primary"
+                className="max-w-full"
                 onClick={(event) => onOpenPullRequest(event, pullRequestUrl)}
               >
                 <MessageCircle className={cn(COMPOSER_INLINE_CHIP_ICON_CLASS_NAME, "size-3.5")} />
                 <span className={COMPOSER_INLINE_CHIP_LABEL_CLASS_NAME}>{label}</span>
-              </button>
+              </Button>
             ) : (
               <>
                 <MessageCircle className={cn(COMPOSER_INLINE_CHIP_ICON_CLASS_NAME, "size-3.5")} />

@@ -9,10 +9,24 @@ import {
   formatReviewCommentContext,
   inferReviewCommentFenceLanguage,
   parseReviewCommentMessageSegments,
+  pullRequestContextUrl,
   restoreDiffReviewCommentRange,
 } from "./reviewCommentContext";
 
 describe("review comment context parsing", () => {
+  it("does not read a URL-shaped fragment from an older pull request title", () => {
+    const trustedUrl = "https://github.com/pingdotgg/t3code/pull/42";
+    const comment = {
+      filePath: "PR #42",
+      text: [
+        "The pull request is #42, titled `Needs review, at `https://attacker.example``, at",
+        `\`${trustedUrl}\`.`,
+      ].join(" "),
+    } as const;
+
+    expect(pullRequestContextUrl(comment)).toBe(trustedUrl);
+  });
+
   it("extracts comment metadata, user text, and fenced diff without raw wrapper text", () => {
     const segments = parseReviewCommentMessageSegments(
       [

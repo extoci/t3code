@@ -42,7 +42,9 @@ export interface ReviewCommentContext {
 }
 
 const PULL_REQUEST_CONTEXT_FILE_PATTERN = /^PR #\d+$/u;
-const PULL_REQUEST_URL_IN_CONTEXT_TEXT_PATTERN = /(?:^|\bat\s+)`(https?:\/\/[^`\s]+)`/u;
+const PULL_REQUEST_URL_IN_CONTEXT_TEXT_PATTERN = /^Pull request URL: `(https?:\/\/[^`\s]+)`$/mu;
+const LEGACY_PULL_REQUEST_URL_IN_CONTEXT_TEXT_PATTERN =
+  /^The pull request is #\d+, titled `.*`, at `(https?:\/\/[^`\s]+)`\.$/mu;
 
 /** Returns the pull request URL carried by a whole-PR context chip, including older drafts. */
 export function pullRequestContextUrl(
@@ -50,7 +52,12 @@ export function pullRequestContextUrl(
 ): string | null {
   if (!PULL_REQUEST_CONTEXT_FILE_PATTERN.test(comment.filePath)) return null;
   const explicitUrl = comment.pullRequestUrl?.trim();
-  return explicitUrl || PULL_REQUEST_URL_IN_CONTEXT_TEXT_PATTERN.exec(comment.text)?.[1] || null;
+  return (
+    explicitUrl ||
+    PULL_REQUEST_URL_IN_CONTEXT_TEXT_PATTERN.exec(comment.text)?.[1] ||
+    LEGACY_PULL_REQUEST_URL_IN_CONTEXT_TEXT_PATTERN.exec(comment.text)?.[1] ||
+    null
+  );
 }
 
 interface DiffReviewLine {

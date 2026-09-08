@@ -1377,6 +1377,7 @@ export interface ChatComposerProps {
 // Component
 // --------------------------------------------------------------------------
 
+/** Renders the composer surface and its attached context controls. */
 export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps) {
   const {
     composerDraftTarget,
