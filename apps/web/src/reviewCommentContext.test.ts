@@ -17,7 +17,7 @@ describe("review comment context parsing", () => {
   it("does not read a URL-shaped fragment from an older pull request title", () => {
     const trustedUrl = "https://github.com/pingdotgg/t3code/pull/42";
     const comment = {
-      filePath: "PR #42",
+      id: "pull-request-context:42",
       text: [
         "The pull request is #42, titled `Needs review, at `https://attacker.example``, at",
         `\`${trustedUrl}\`.`,
@@ -25,6 +25,15 @@ describe("review comment context parsing", () => {
     } as const;
 
     expect(pullRequestContextUrl(comment)).toBe(trustedUrl);
+  });
+
+  it("does not infer a pull request from an ordinary file comment", () => {
+    expect(
+      pullRequestContextUrl({
+        id: "review-comment:0:file:PR #42:0:0",
+        text: "Pull request URL: `https://github.com/pingdotgg/t3code/pull/42`",
+      }),
+    ).toBeNull();
   });
 
   it("extracts comment metadata, user text, and fenced diff without raw wrapper text", () => {

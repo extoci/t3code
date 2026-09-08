@@ -41,16 +41,16 @@ export interface ReviewCommentContext {
   readonly selection?: ReviewCommentSelection | undefined;
 }
 
-const PULL_REQUEST_CONTEXT_FILE_PATTERN = /^PR #\d+$/u;
+const WHOLE_PULL_REQUEST_CONTEXT_ID_PATTERN = /^pull-request-context:\d+$/u;
 const PULL_REQUEST_URL_IN_CONTEXT_TEXT_PATTERN = /^Pull request URL: `(https?:\/\/[^`\s]+)`$/mu;
 const LEGACY_PULL_REQUEST_URL_IN_CONTEXT_TEXT_PATTERN =
   /^The pull request is #\d+, titled `.*`, at `(https?:\/\/[^`\s]+)`\.$/mu;
 
 /** Returns the pull request URL carried by a whole-PR context chip, including older drafts. */
 export function pullRequestContextUrl(
-  comment: Pick<ReviewCommentContext, "filePath" | "pullRequestUrl" | "text">,
+  comment: Pick<ReviewCommentContext, "id" | "pullRequestUrl" | "text">,
 ): string | null {
-  if (!PULL_REQUEST_CONTEXT_FILE_PATTERN.test(comment.filePath)) return null;
+  if (!WHOLE_PULL_REQUEST_CONTEXT_ID_PATTERN.test(comment.id)) return null;
   const explicitUrl = comment.pullRequestUrl?.trim();
   return (
     explicitUrl ||
