@@ -857,6 +857,7 @@ function pullRequestContextComment(
     startIndex: 0,
     endIndex: 0,
     rangeLabel: boundedField(input.title),
+    pullRequestUrl: input.url,
     text: [
       `The pull request is #${input.number}, titled \`${boundedField(input.title)}\`, at \`${boundedField(input.url)}\`.`,
       `Its branch is \`${boundedField(input.headBranch)}\` targeting \`${boundedField(input.baseBranch)}\`.`,

@@ -20,6 +20,7 @@ export const ReviewCommentContextSchema = Schema.Struct({
   rangeLabel: Schema.String,
   text: Schema.String,
   diff: Schema.String,
+  pullRequestUrl: Schema.optionalKey(Schema.String),
   fenceLanguage: Schema.optional(Schema.String),
   selection: Schema.optional(ReviewCommentSelectionSchema),
 });
@@ -34,8 +35,22 @@ export interface ReviewCommentContext {
   readonly rangeLabel: string;
   readonly text: string;
   readonly diff: string;
+  /** Present on the whole-pull-request context chip, not line-level review comments. */
+  readonly pullRequestUrl?: string;
   readonly fenceLanguage?: string | undefined;
   readonly selection?: ReviewCommentSelection | undefined;
+}
+
+const PULL_REQUEST_CONTEXT_FILE_PATTERN = /^PR #\d+$/u;
+const PULL_REQUEST_URL_IN_CONTEXT_TEXT_PATTERN = /(?:^|\bat\s+)`(https?:\/\/[^`\s]+)`/u;
+
+/** Returns the pull request URL carried by a whole-PR context chip, including older drafts. */
+export function pullRequestContextUrl(
+  comment: Pick<ReviewCommentContext, "filePath" | "pullRequestUrl" | "text">,
+): string | null {
+  if (!PULL_REQUEST_CONTEXT_FILE_PATTERN.test(comment.filePath)) return null;
+  const explicitUrl = comment.pullRequestUrl?.trim();
+  return explicitUrl || PULL_REQUEST_URL_IN_CONTEXT_TEXT_PATTERN.exec(comment.text)?.[1] || null;
 }
 
 interface DiffReviewLine {
