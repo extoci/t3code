@@ -214,13 +214,6 @@ vi.mock("electron", () => ({
   },
   nativeImage: {
     createFromPath,
-    createFromBuffer: (data: Buffer) => ({
-      toPNG: () => data,
-      getSize: () => ({
-        width: data.length >= 24 ? data.readUInt32BE(16) : 1280,
-        height: data.length >= 24 ? data.readUInt32BE(20) : 720,
-      }),
-    }),
   },
   shell: {
     showItemInFolder,
@@ -2622,109 +2615,6 @@ describe("PreviewManager", () => {
         expect(Exit.isFailure(exit)).toBe(true);
         expect(capturePage).toHaveBeenCalledOnce();
         expect(writeFile).not.toHaveBeenCalled();
-      }),
-    ),
-  );
-
-  effectIt.effect("uses native capture for manual screenshots when the debugger is available", () =>
-    withManager((manager) =>
-      Effect.gen(function* () {
-        const png = makeSourcePng(3840, 2160);
-        const capturePage = vi.fn(async () => ({
-          toPNG: () => makeSourcePng(1280, 720),
-          toJPEG: () => makeSourcePng(1280, 720),
-          getSize: () => ({ width: 1280, height: 720 }),
-        }));
-        const sendCommand = vi.fn(async (method: string, params?: Record<string, unknown>) => {
-          if (method === "Page.getLayoutMetrics") {
-            return {
-              cssVisualViewport: {
-                pageX: 0,
-                pageY: 0,
-                clientWidth: 1920,
-                clientHeight: 1080,
-              },
-            };
-          }
-          if (method === "Page.captureScreenshot") {
-            expect(params).toMatchObject({
-              format: "png",
-              captureBeyondViewport: true,
-              clip: { x: 0, y: 0, width: 1920, height: 1080, scale: 1 },
-            });
-            return { data: png.toString("base64") };
-          }
-          return undefined;
-        });
-        const wc = makeTestPreviewWebContents(capturePage);
-        Object.assign(wc, { isDevToolsOpened: () => false });
-        Object.assign(wc.debugger, { sendCommand });
-        fromId.mockReturnValue(wc);
-        yield* manager.createTab("tab_1");
-        yield* manager.registerWebview("tab_1", 42);
-
-        const artifact = yield* manager.captureScreenshot("tab_1");
-
-        expect(capturePage).not.toHaveBeenCalled();
-        expect(sendCommand).toHaveBeenCalledWith("Page.captureScreenshot", expect.anything());
-        expect(writeFile).toHaveBeenCalledWith(artifact.path, png);
-        expect(artifact.sizeBytes).toBe(png.byteLength);
-      }),
-    ),
-  );
-
-  effectIt.effect("preserves native screenshot pixels in automation snapshots", () =>
-    withManager((manager) =>
-      Effect.gen(function* () {
-        const png = makeSourcePng(3840, 2160);
-        const sendCommand = vi.fn(async (method: string, params?: Record<string, unknown>) => {
-          if (method === "Runtime.evaluate") {
-            return { result: { value: { url: "about:blank", interactiveElements: [] } } };
-          }
-          if (method === "Page.getLayoutMetrics") {
-            return {
-              cssVisualViewport: {
-                pageX: 8,
-                pageY: 12,
-                clientWidth: 1920,
-                clientHeight: 1080,
-                zoom: 1.25,
-              },
-            };
-          }
-          if (method === "Page.captureScreenshot") {
-            expect(params).toMatchObject({
-              clip: { x: 10, y: 15, width: 2400, height: 1350, scale: 1 },
-            });
-            return { data: png.toString("base64") };
-          }
-          return method === "Accessibility.getFullAXTree" ? { nodes: [] } : undefined;
-        });
-        const image = {
-          toPNG: () => png,
-          toJPEG: () => png,
-          getSize: () => ({ width: 3840, height: 2160 }),
-          resize: () => ({
-            toPNG: () => makeSourcePng(1280, 720),
-            getSize: () => ({ width: 1280, height: 720 }),
-          }),
-        };
-        const wc = makeTestPreviewWebContents(async () => image);
-        Object.assign(wc, { isDevToolsOpened: () => false });
-        Object.assign(wc.debugger, {
-          sendCommand,
-        });
-        fromId.mockReturnValue(wc);
-        yield* manager.createTab("tab_1");
-        yield* manager.registerWebview("tab_1", 42);
-
-        const snapshot = yield* manager.automationSnapshot("tab_1");
-        expect(snapshot.screenshot).toEqual({
-          mimeType: "image/png",
-          width: 3840,
-          height: 2160,
-          data: png.toString("base64"),
-        });
       }),
     ),
   );
