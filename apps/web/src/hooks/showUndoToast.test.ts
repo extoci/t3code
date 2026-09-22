@@ -3,10 +3,13 @@ import * as Cause from "effect/Cause";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { toastManager } from "../components/ui/toast";
-import { showUndoToast, undoLatestThreadAction } from "./showUndoToast";
+import { registerThreadUndo, showUndoToast, undoLatestThreadAction } from "./showUndoToast";
 import * as ThreadUndo from "./threadUndo";
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
 
 function setup() {
   const add = vi.spyOn(toastManager, "add").mockReturnValue("undo-toast");
@@ -123,5 +126,33 @@ describe("undoLatestThreadAction", () => {
     expect(superseded).not.toHaveBeenCalled();
     expect(closed).not.toHaveBeenCalled();
     expect(live).toHaveBeenCalledOnce();
+  });
+});
+
+describe("registerThreadUndo", () => {
+  it("makes an Undo available without presenting a toast", async () => {
+    const { add, undo, claim, options } = setup();
+    registerThreadUndo({ undo, claim, failureTitle: options.failureTitle });
+
+    expect(add).not.toHaveBeenCalled();
+    expect(undoLatestThreadAction()).toBe(true);
+    await vi.waitFor(() => expect(undo).toHaveBeenCalledOnce());
+    expect(claim.isCurrent()).toBe(false);
+  });
+
+  it("expires a presentation-free Undo after its window", () => {
+    vi.useFakeTimers();
+    const { undo, claim, options } = setup();
+    const registration = registerThreadUndo({
+      undo,
+      claim,
+      failureTitle: options.failureTitle,
+      expiresAfterMs: 5_000,
+    });
+
+    vi.advanceTimersByTime(5_000);
+    expect(registration?.run()).toBeNull();
+    expect(undo).not.toHaveBeenCalled();
+    expect(claim.isCurrent()).toBe(false);
   });
 });

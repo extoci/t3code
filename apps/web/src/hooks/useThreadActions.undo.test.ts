@@ -1,9 +1,12 @@
-import { EnvironmentId, ThreadId } from "@t3tools/contracts";
+import { DEFAULT_SERVER_SETTINGS, EnvironmentId, ThreadId } from "@t3tools/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { useThreadActions } from "./useThreadActions";
 import { threadEnvironment } from "../state/threads";
 import { toastManager } from "../components/ui/toast";
+import { undoLatestThreadAction } from "./showUndoToast";
+import { appAtomRegistry } from "../rpc/atomRegistry";
+import { environmentServerConfigsAtom, primaryServerKeybindingsAtom } from "../state/server";
 
 const commands = vi.hoisted(() => ({
   pin: vi.fn(),
@@ -19,6 +22,8 @@ const router = vi.hoisted(() => ({
   navigate: vi.fn(async () => {}),
   state: { matches: [{ params: {} as Record<string, string> }] },
 }));
+const firstUseHints = vi.hoisted(() => ({ show: vi.fn() }));
+const atomRegistry = vi.hoisted(() => ({ get: vi.fn() }));
 vi.mock("react", async (original) => ({
   ...(await original<typeof import("react")>()),
   useCallback: (callback: unknown) => callback,
@@ -31,6 +36,8 @@ vi.mock("./useHandleNewThread", () => ({ useNewThreadHandler: () => vi.fn() }));
 vi.mock("../composerDraftStore", () => ({ useComposerDraftStore: () => vi.fn() }));
 vi.mock("../terminalUiStateStore", () => ({ useTerminalUiStateStore: () => vi.fn() }));
 vi.mock("../uiStateStore", () => ({ useUiStateStore: () => vi.fn() }));
+vi.mock("../firstUseHints", () => ({ firstUseHints }));
+vi.mock("../rpc/atomRegistry", () => ({ appAtomRegistry: atomRegistry }));
 vi.mock("../lib/archivedThreadsState", () => ({ refreshArchivedThreadsForEnvironment: vi.fn() }));
 const threadShell = vi.hoisted(() => ({
   title: "Thread",
@@ -40,6 +47,7 @@ const threadShell = vi.hoisted(() => ({
   projectId: "project",
   environmentId: "undo-env",
   session: null,
+  worktreePath: null as string | null,
 }));
 vi.mock("../state/entities", async (original) => ({
   ...(await original<typeof import("../state/entities")>()),
@@ -97,6 +105,15 @@ beforeEach(() => {
   router.state.matches[0]!.params = {};
   threadShell.pinnedAt = null;
   threadShell.snoozedUntil = null;
+  threadShell.worktreePath = null;
+  firstUseHints.show.mockReset().mockReturnValue(false);
+  vi.mocked(appAtomRegistry.get)
+    .mockReset()
+    .mockImplementation((atom) => {
+      if (atom === environmentServerConfigsAtom) return new Map() as never;
+      if (atom === primaryServerKeybindingsAtom) return [] as never;
+      throw new Error("Unexpected atom read");
+    });
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -167,15 +184,22 @@ describe("archive Undo", () => {
 });
 
 describe("settle and snooze Undo", () => {
-  it("un-settles from the toast and expires the Undo after a manual un-settle", async () => {
+  it("registers settle Undo without presenting a toast", async () => {
     const add = vi.spyOn(toastManager, "add").mockReturnValue("toast");
-    vi.spyOn(toastManager, "close").mockImplementation(() => {});
     const actions = useThreadActions();
     await actions.settleThread(target);
-    expect(add).toHaveBeenCalledWith(expect.objectContaining({ title: "Thread settled" }));
-    const undo = undoOf(add, 0);
+
+    expect(add).not.toHaveBeenCalled();
+    expect(undoLatestThreadAction()).toBe(true);
+    await vi.waitFor(() => expect(commands.unsettle).toHaveBeenCalledOnce());
+  });
+
+  it("expires settle Undo after a manual un-settle", async () => {
+    const actions = useThreadActions();
+    await actions.settleThread(target);
     await actions.unsettleThread(target);
-    await undo();
+
+    expect(undoLatestThreadAction()).toBe(false);
     expect(commands.unsettle).toHaveBeenCalledOnce();
   });
 
@@ -187,7 +211,9 @@ describe("settle and snooze Undo", () => {
     threadShell.snoozedUntil = snoozedUntil;
     const actions = useThreadActions();
     await actions.settleThread(target);
-    await undoOf(add, 0)();
+    expect(add).not.toHaveBeenCalled();
+    expect(undoLatestThreadAction()).toBe(true);
+    await vi.waitFor(() => expect(commands.snooze).toHaveBeenCalledOnce());
     expect(commands.unsettle).toHaveBeenCalledOnce();
     expect(commands.pin).toHaveBeenCalledExactlyOnceWith({
       environmentId: target.environmentId,
@@ -214,6 +240,58 @@ describe("settle and snooze Undo", () => {
     const add = vi.spyOn(toastManager, "add").mockReturnValue("toast");
     await useThreadActions().settleThread(target, { undoToast: false });
     expect(add).not.toHaveBeenCalled();
+    expect(firstUseHints.show).not.toHaveBeenCalled();
+  });
+
+  it("offers the first-use hint until it is dismissed", async () => {
+    firstUseHints.show.mockReturnValueOnce(true);
+    const actions = useThreadActions();
+    await actions.settleThread(target);
+
+    expect(firstUseHints.show).toHaveBeenCalledOnce();
+    const hint = firstUseHints.show.mock.calls[0]?.[0];
+    expect(hint).toMatchObject({
+      id: "thread-settle",
+      title: "Thread settled",
+      secondaryAction: { label: "Undo settle" },
+    });
+    expect(hint.description).toMatch(/undo this settle/i);
+    hint.secondaryAction.onSelect();
+    hint.onDismiss();
+    await vi.waitFor(() => expect(commands.unsettle).toHaveBeenCalledOnce());
+  });
+
+  it("suggests worktree cleanup when every effective rule is off", async () => {
+    threadShell.worktreePath = "/repo/.worktrees/thread";
+    vi.mocked(appAtomRegistry.get).mockImplementation((atom) => {
+      if (atom === environmentServerConfigsAtom) {
+        return new Map([
+          [
+            target.environmentId,
+            {
+              environment: { capabilities: { storageCleanup: true } },
+              settings: DEFAULT_SERVER_SETTINGS,
+            },
+          ],
+        ]) as never;
+      }
+      if (atom === primaryServerKeybindingsAtom) return [] as never;
+      throw new Error("Unexpected atom read");
+    });
+    firstUseHints.show.mockReturnValueOnce(true);
+
+    await useThreadActions().settleThread(target);
+
+    const hint = firstUseHints.show.mock.calls[0]?.[0];
+    expect(hint.description).toMatch(/automatically clean up/i);
+    expect(hint.primaryAction?.label).toBe("Worktree settings");
+    hint.primaryAction?.onSelect();
+    expect(router.navigate).toHaveBeenCalledExactlyOnceWith({
+      to: "/settings/storage",
+      search: { machine: target.environmentId },
+      hash: "storage-worktrees",
+    });
+    hint.onDismiss();
   });
 
   it("wakes the thread from the snooze toast", async () => {
