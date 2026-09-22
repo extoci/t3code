@@ -19,12 +19,14 @@ import { snoozeWakeDescription } from "../components/Sidebar.snooze";
 import { useComposerDraftStore } from "../composerDraftStore";
 import { terminalEnvironment } from "../state/terminal";
 import { appAtomRegistry } from "../rpc/atomRegistry";
-import { environmentServerConfigsAtom } from "../state/server";
+import { environmentServerConfigsAtom, primaryServerKeybindingsAtom } from "../state/server";
 import { threadEnvironment } from "../state/threads";
 import { vcsEnvironment } from "../state/vcs";
 import { useNewThreadHandler } from "./useHandleNewThread";
 import { refreshArchivedThreadsForEnvironment } from "../lib/archivedThreadsState";
 import { releaseComposerDraftUploads } from "../lib/composerDraftUploads";
+import { firstUseHints } from "../firstUseHints";
+import { shortcutLabelForCommand } from "../keybindings";
 import { readLocalApi } from "../localApi";
 import {
   readEnvironmentSupportsPinning,
@@ -44,7 +46,12 @@ import { formatWorktreePathForDisplay, getOrphanedWorktreePathForThread } from "
 import { stackedThreadToast, toastManager } from "../components/ui/toast";
 import { useClientSettings } from "./useSettings";
 import * as ThreadUndo from "./threadUndo";
-import { showUndoToast } from "./showUndoToast";
+import {
+  registerThreadUndo,
+  showUndoToast,
+  THREAD_UNDO_TIMEOUT_MS,
+  type RegisteredThreadUndo,
+} from "./showUndoToast";
 import { useAtomCommand } from "../state/use-atom-command";
 
 export class ThreadArchiveBlockedError extends Schema.TaggedError<ThreadArchiveBlockedError>()(
@@ -675,29 +682,80 @@ export function useThreadActions() {
         action.finish();
         return result;
       }
-      showUndoToast({
+      const undo = async () => {
+        const unsettled = await unsettleThread(target);
+        if (unsettled._tag !== "Success") return unsettled;
+        if (wasPinned) {
+          const pinned = await pinThread(
+            target,
+            pinOrderKey == null ? {} : { orderKey: pinOrderKey },
+          );
+          if (pinned._tag !== "Success") return pinned;
+        }
+        if (snoozedUntil !== null) {
+          return snoozeThreadMutation({
+            environmentId: target.environmentId,
+            input: { threadId: target.threadId, snoozedUntil },
+          });
+        }
+        return unsettled;
+      };
+      let undoRegistration: RegisteredThreadUndo | null = null;
+      const serverConfig = appAtomRegistry
+        .get(environmentServerConfigsAtom)
+        .get(target.environmentId);
+      const cleanup =
+        serverConfig && resolved
+          ? resolveWorktreeCleanup(serverConfig.settings, resolved.thread.projectId)
+          : null;
+      const suggestWorktreeCleanup =
+        resolved?.thread.worktreePath != null &&
+        serverConfig?.environment.capabilities.storageCleanup === true &&
+        cleanup !== null &&
+        cleanup.worktreeAfterDays === null &&
+        !cleanup.worktreeOnDelete &&
+        !cleanup.worktreeOnMerge &&
+        !cleanup.worktreeUnchanged;
+      const undoShortcut = shortcutLabelForCommand(
+        appAtomRegistry.get(primaryServerKeybindingsAtom),
+        "thread.undo",
+      );
+      const undoInstruction = undoShortcut
+        ? `Press ${undoShortcut} to undo this settle.`
+        : "Use the Undo command to undo this settle.";
+      const hintShown = firstUseHints.show({
+        id: "thread-settle",
         title: "Thread settled",
-        description: resolved?.thread.title,
-        claim: action,
-        undo: async () => {
-          const unsettled = await unsettleThread(target);
-          if (unsettled._tag !== "Success") return unsettled;
-          if (wasPinned) {
-            const pinned = await pinThread(
-              target,
-              pinOrderKey == null ? {} : { orderKey: pinOrderKey },
-            );
-            if (pinned._tag !== "Success") return pinned;
-          }
-          if (snoozedUntil !== null) {
-            return snoozeThreadMutation({
-              environmentId: target.environmentId,
-              input: { threadId: target.threadId, snoozedUntil },
-            });
-          }
-          return unsettled;
+        description: suggestWorktreeCleanup
+          ? `${undoInstruction} T3 Code can also automatically clean up inactive and merged worktrees.`
+          : undoInstruction,
+        ...(suggestWorktreeCleanup
+          ? {
+              primaryAction: {
+                label: "Worktree settings",
+                onSelect: () => {
+                  void router.navigate({
+                    to: "/settings/storage",
+                    search: { machine: target.environmentId },
+                    hash: "storage-worktrees",
+                  });
+                },
+              },
+            }
+          : {}),
+        secondaryAction: {
+          label: "Undo settle",
+          onSelect: () => {
+            void undoRegistration?.run();
+          },
         },
+        onDismiss: () => undoRegistration?.finish(),
+      });
+      undoRegistration = registerThreadUndo({
+        claim: action,
+        undo,
         failureTitle: "Failed to undo settle",
+        ...(hintShown ? {} : { expiresAfterMs: THREAD_UNDO_TIMEOUT_MS }),
       });
       return result;
     },
@@ -705,6 +763,7 @@ export function useThreadActions() {
       markThreadVisited,
       pinThread,
       resolveThreadTarget,
+      router,
       settleThreadMutation,
       snoozeThreadMutation,
       unsettleThread,
