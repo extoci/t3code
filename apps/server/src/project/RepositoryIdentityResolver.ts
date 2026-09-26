@@ -8,7 +8,9 @@ import * as Context from "effect/Context";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
+import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
+import * as Path from "effect/Path";
 
 import * as ProcessRunner from "../processRunner.ts";
 
@@ -97,8 +99,45 @@ function buildRepositoryIdentity(input: {
   };
 }
 
+const hasGitDiscoveryCandidate = Effect.fnUntraced(function* (cwd: string) {
+  // Explicit Git discovery settings can find repositories outside the normal directory walk.
+  if (
+    process.env.GIT_DIR !== undefined ||
+    process.env.GIT_WORK_TREE !== undefined ||
+    process.env.GIT_COMMON_DIR !== undefined ||
+    process.env.GIT_CEILING_DIRECTORIES !== undefined ||
+    process.env.GIT_DISCOVERY_ACROSS_FILESYSTEM !== undefined
+  ) {
+    return undefined;
+  }
+
+  const fileSystem = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  return yield* Effect.gen(function* () {
+    const resolvedCwd = yield* fileSystem.realPath(cwd);
+    const start = yield* fileSystem.stat(resolvedCwd);
+    if (start.type !== "Directory") return undefined;
+    let directory = resolvedCwd;
+    while (true) {
+      const directoryStat = yield* fileSystem.stat(directory);
+      if (directoryStat.dev !== start.dev) return false;
+      const entries = yield* fileSystem.readDirectory(directory);
+      if (entries.includes(".git") || entries.includes("HEAD")) {
+        // A marker may still describe a bare or reconfigured repository.
+        // Git remains authoritative for the actual working-tree root.
+        return true;
+      }
+      const parent = path.dirname(directory);
+      if (parent === directory) return false;
+      directory = parent;
+    }
+  }).pipe(Effect.orElseSucceed(() => undefined));
+});
+
 const resolveRepositoryIdentityCacheKey = Effect.fn("RepositoryIdentityResolver.resolveCacheKey")(
   function* (cwd: string) {
+    const hasCandidate = yield* hasGitDiscoveryCandidate(cwd);
+    if (hasCandidate === false) return null;
     const processRunner = yield* ProcessRunner.ProcessRunner;
 
     // git is a real executable on every platform — no cmd.exe shell mode, which
@@ -144,6 +183,8 @@ export const make = Effect.fn("RepositoryIdentityResolver.make")(function* (
   options: RepositoryIdentityResolverOptions = {},
 ) {
   const processRunner = yield* ProcessRunner.ProcessRunner;
+  const fileSystem = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
   const cacheCapacity = options.cacheCapacity ?? DEFAULT_REPOSITORY_IDENTITY_CACHE_CAPACITY;
   const refine = options.refine ?? Effect.succeed;
   // Git errors and timeouts resolve to null, so they use the negative TTL like
@@ -161,6 +202,8 @@ export const make = Effect.fn("RepositoryIdentityResolver.make")(function* (
     (cwd) =>
       resolveRepositoryIdentityCacheKey(cwd).pipe(
         Effect.provideService(ProcessRunner.ProcessRunner, processRunner),
+        Effect.provideService(FileSystem.FileSystem, fileSystem),
+        Effect.provideService(Path.Path, path),
       ),
     { capacity: cacheCapacity, timeToLive },
   );
